@@ -291,3 +291,7 @@ a:hover .img { opacity: .88; }
 .ob-actions { justify-content: space-between; margin: 0; }
 .notice { border: 1px solid #111; border-radius: 10px; padding: 12px 14px; font-size: 14px; margin: 0 0 20px; }
 .steps-list { padding-left: 20px; line-height: 1.8; font-size: 15px; }
+
+/* Toast */
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #111; color: #fff; padding: 12px 18px; border-radius: 12px; font-size: 14px; z-index: 50; max-width: calc(100vw - 32px); transition: opacity .6s; }
+.toast.out { opacity: 0; }

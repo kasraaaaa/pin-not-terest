@@ -344,14 +344,43 @@
     }
     return session ? session.user : null;
   }
+  function rememberAfterSignIn(o) {
+    try { localStorage.setItem('pnt_after_signin', JSON.stringify(Object.assign({ at: Date.now() }, o))); } catch (e) {}
+  }
+  // After signing in (often in a new tab from the email link), go back and finish what was started.
+  async function finishAfterSignIn() {
+    if (!user) return;
+    var p = null;
+    try { p = JSON.parse(localStorage.getItem('pnt_after_signin') || 'null'); localStorage.removeItem('pnt_after_signin'); } catch (e) {}
+    if (!p || Date.now() - (p.at || 0) > 2 * 60 * 60 * 1000) return;
+    if (p.follow && !following[p.follow]) {
+      var ch = chars.filter(function (c) { return c.id === p.follow; })[0];
+      if (ch) await toggleFollow(ch);
+    }
+    if (p.route && location.hash !== p.route) { history.replaceState(null, '', p.route); }
+    route();
+    if (p.follow) toast('You\u2019re now following this style. New looks will show under Following.');
+  }
+  function toast(msg) {
+    var t = document.createElement('div');
+    t.className = 'toast'; t.setAttribute('role', 'status'); t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(function () { t.classList.add('out'); }, 3500);
+    setTimeout(function () { t.remove(); }, 4200);
+  }
   function signedOutAgain(ch) {
+    rememberAfterSignIn({ route: '#/' + ch.slug, follow: ch.id });
     user = null;
     following = {};
     updateHeader();
     openSignIn('Your sign-in on this page has expired. Please sign in again to follow ' + ch.name + '\u2019s style.');
   }
   async function toggleFollow(ch) {
-    if (!user) { openSignIn('Sign in to follow ' + ch.name + '\u2019s style. You\u2019ll see their newest looks under Following.'); return false; }
+    if (!user) {
+      rememberAfterSignIn({ route: '#/' + ch.slug, follow: ch.id });
+      openSignIn('Sign in to follow ' + ch.name + '\u2019s style. You\u2019ll see their newest looks under Following.');
+      return false;
+    }
     var me = await liveUser();
     if (!me) { signedOutAgain(ch); return false; }
     if (me.id !== user.id) { user = me; await loadFollows(); }
@@ -407,7 +436,7 @@
       app.innerHTML = '<div class="home"><section class="intro"><div><p class="eyebrow">Following</p><h1>Keep up with the<br>styles you like.</h1></div></section>' +
         '<div class="panel narrow" style="text-align:center"><p>Follow models whose outfits you like. Their newest looks show up here, ready to shop.</p>' +
         '<button type="button" class="btn btn-dark" id="following-signin">Sign in to start following</button></div></div>';
-      document.getElementById('following-signin').addEventListener('click', function () { openSignIn(); });
+      document.getElementById('following-signin').addEventListener('click', function () { rememberAfterSignIn({ route: '#/following' }); openSignIn(); });
       return;
     }
     var followed = chars.filter(function (c) { return following[c.id]; });
@@ -463,7 +492,7 @@
   });
   var accountDialog = document.getElementById('account-dialog');
   document.getElementById('account-btn').addEventListener('click', function () {
-    if (!user) { openSignIn(); return; }
+    if (!user) { rememberAfterSignIn({ route: location.hash || '#/' }); openSignIn(); return; }
     document.getElementById('account-email').textContent = 'Signed in as ' + (user.email || '');
     accountDialog.showModal();
   });
@@ -528,6 +557,7 @@
       p.brand = b ? { name: b.name } : null;
     });
     route();
+    finishAfterSignIn();
   }
 
   // ---------- New character from the website ----------
@@ -584,7 +614,7 @@
     lastSeen = readSeen();
     loadFollows().then(function () {
       if (signinDialog.open && user) signinDialog.close();
-      if (chars.length) route(); else updateHeader();
+      if (chars.length) { route(); finishAfterSignIn(); } else updateHeader();
     });
   });
 

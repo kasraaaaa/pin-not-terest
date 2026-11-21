@@ -53,10 +53,27 @@
     if (!user) { $('dash').hidden = true; $('onboard').hidden = true; return; }
     await loadMe();
     var creator = !!(me && me.is_creator);
+    // A shopper who was in the middle of something on the main site goes back to finish it.
+    var pending = null; try { pending = localStorage.getItem('pnt_after_signin'); } catch (e) {}
+    if (!creator && pending) { location.replace('./'); return; }
     $('dash').hidden = !creator;
     $('onboard').hidden = creator;
     if (creator) { $('onboard').innerHTML = ''; paintProfileDot(); loadChars(); }
-    else renderOnboarding();
+    else if (wantsSetup) renderOnboarding();
+    else renderShopperChoice();
+  }
+  // Shoppers only see the creator setup after choosing it.
+  var wantsSetup = /[?&]setup=1/.test(location.search);
+  function renderShopperChoice() {
+    $('onboard').innerHTML =
+      '<div class="panel ob-panel" style="text-align:center">' +
+        '<p class="eyebrow">Signed in</p><h1>You\u2019re signed in as a shopper</h1>' +
+        '<p class="muted">Shoppers can follow models\u2019 styles and buy what they wear. Creators can also build AI models and sell their own pieces.</p>' +
+        '<div class="actions" style="justify-content:center;margin-top:20px">' +
+          '<a href="./" class="btn btn-dark" style="display:inline-flex;align-items:center">Continue shopping</a>' +
+          '<button type="button" id="go-setup" class="btn">Switch to creator mode</button>' +
+        '</div></div>';
+    $('go-setup').addEventListener('click', function () { wantsSetup = true; renderOnboarding(); });
   }
   function handleTag() {
     return '@' + ((me && me.handle) || (user.email || 'creator').split('@')[0]);
