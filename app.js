@@ -205,7 +205,7 @@
       name: name,
       bio: document.getElementById('nc-bio').value.trim() || null,
       slug: slugify(name) + '-' + Math.random().toString(36).slice(2, 6),
-      creator_handle: '@' + user.email.split('@')[0],
+      creator_handle: '@' + (user.email || 'creator').split('@')[0],
       sort: chars.length + 1
     };
     var res = await db.from('characters').insert(row).select().single();

@@ -129,3 +129,9 @@ a:hover .img { opacity: .88; }
 /* Real images: feed keeps each image's natural shape; profile grid crops to 4:5 */
 .img.has-img { padding: 0; display: block; }
 .feed .img.has-img img { position: static; display: block; width: 100%; height: auto; }
+
+/* Google sign-in */
+.google-btn { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 10px; margin-top: 20px; }
+.google-btn:hover { border-color: #111; }
+.divider { display: flex; align-items: center; gap: 12px; margin: 20px 0 12px; color: #6b6b6b; font-size: 12px; text-transform: uppercase; letter-spacing: .14em; }
+.divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: #e6e6e6; }

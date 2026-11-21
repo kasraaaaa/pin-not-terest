@@ -25,6 +25,14 @@
     var res = await db.auth.signInWithOtp({ email: email, options: { emailRedirectTo: redirect } });
     $('login-msg').textContent = res.error ? ('Could not send link: ' + res.error.message) : 'Check your email for the sign-in link.';
   });
+  $('google-login').addEventListener('click', async function () {
+    $('google-msg').textContent = '';
+    var res = await db.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: location.origin + location.pathname, queryParams: { prompt: 'select_account' } }
+    });
+    if (res.error) $('google-msg').textContent = 'Google sign-in is not available yet: ' + res.error.message;
+  });
   $('signout').addEventListener('click', async function () { await db.auth.signOut(); });
 
   db.auth.onAuthStateChange(function (_evt, session) {
@@ -80,7 +88,7 @@
       name: name,
       bio: $('new-bio').value.trim() || null,
       slug: slugify(name) + '-' + Math.random().toString(36).slice(2, 6),
-      creator_handle: '@' + user.email.split('@')[0]
+      creator_handle: '@' + (user.email || 'creator').split('@')[0]
     };
     var res = await db.from('characters').insert(row).select().single();
     if (res.error) { $('new-msg').textContent = 'Could not create: ' + res.error.message; return; }
