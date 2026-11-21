@@ -11,6 +11,8 @@
   var filter = 'all';
   var following = {};
   var tab = 'looks';
+  var user = null;
+  var editing = false;
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -84,6 +86,7 @@
   function renderProfile(ch) {
     document.title = ch.name + ' — Pin Not Terest';
     var f = !!following[ch.id];
+    var mine = !!(user && ch.creator_id === user.id);
     var tabs = [['looks', 'Looks'], ['brands', 'Brands'], ['boards', 'Boards']].map(function (t) {
       return '<button type="button" class="tab" data-tab="' + t[0] + '" aria-pressed="' + (tab === t[0]) + '">' + t[1] + '</button>';
     }).join('');
@@ -101,19 +104,51 @@
         '<a href="#/" class="back"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 3L5 8l5 5"/></svg>Back to Discover</a>' +
         '<section class="hero">' +
           '<div class="avatar" role="img" aria-label="' + esc(ch.name) + ' profile photo" style="' + avatarStyle(ch, 264) + '"></div>' +
-          '<h1>' + esc(ch.name) + '</h1>' +
-          '<p class="by">' + (ch.kind === 'brand' ? 'Brand' : 'AI character') + (ch.creator_handle ? ' · created by <strong>' + esc(ch.creator_handle) + '</strong>' : '') + '</p>' +
-          (ch.bio ? '<p class="bio">' + esc(ch.bio) + '</p>' : '') +
-          '<div class="actions">' +
-            '<button type="button" id="follow" class="btn ' + (f ? '' : 'btn-dark') + '">' + (f ? 'Following' : 'Follow') + '</button>' +
-            '<button type="button" id="share" class="btn">Share</button>' +
-          '</div>' +
+          (mine && editing ?
+            '<form id="edit-form" class="edit-form">' +
+              '<label for="ed-name">Name</label><input id="ed-name" class="field" required maxlength="80" value="' + esc(ch.name) + '">' +
+              '<label for="ed-bio">One-line bio</label><input id="ed-bio" class="field" maxlength="300" value="' + esc(ch.bio || '') + '">' +
+              '<p id="ed-msg" class="muted" role="status"></p>' +
+              '<div class="actions"><button type="button" id="ed-cancel" class="btn">Cancel</button><button type="submit" class="btn btn-dark">Save</button></div>' +
+            '</form>'
+          :
+            '<h1>' + esc(ch.name) + '</h1>' +
+            '<p class="by">' + (ch.kind === 'brand' ? 'Brand' : 'AI character') + (ch.creator_handle ? ' · created by <strong>' + esc(ch.creator_handle) + '</strong>' : '') + '</p>' +
+            (ch.bio ? '<p class="bio">' + esc(ch.bio) + '</p>' : '') +
+            '<div class="actions">' +
+              (mine
+                ? '<button type="button" id="edit" class="btn btn-dark">Edit profile</button><a href="admin.html#' + esc(ch.slug) + '" class="btn" style="display:inline-flex;align-items:center">Manage images</a>'
+                : '<button type="button" id="follow" class="btn ' + (f ? '' : 'btn-dark') + '">' + (f ? 'Following' : 'Follow') + '</button>') +
+              '<button type="button" id="share" class="btn">Share</button>' +
+            '</div>' +
+            (mine ? '<p class="owner-note">You created this</p>' : '')
+          ) +
         '</section>' +
         '<nav class="tabs" aria-label="Profile sections">' + tabs + '</nav>' + body +
       '</div>';
 
-    document.getElementById('follow').addEventListener('click', function () { following[ch.id] = !f; renderProfile(ch); });
-    document.getElementById('share').addEventListener('click', function (e) {
+    var followBtn = document.getElementById('follow');
+    if (followBtn) followBtn.addEventListener('click', function () { following[ch.id] = !f; renderProfile(ch); });
+    var editBtn = document.getElementById('edit');
+    if (editBtn) editBtn.addEventListener('click', function () { editing = true; renderProfile(ch); document.getElementById('ed-name').focus(); });
+    var editForm = document.getElementById('edit-form');
+    if (editForm) {
+      document.getElementById('ed-cancel').addEventListener('click', function () { editing = false; renderProfile(ch); });
+      editForm.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        var name = document.getElementById('ed-name').value.trim();
+        var bio = document.getElementById('ed-bio').value.trim();
+        if (!name) return;
+        document.getElementById('ed-msg').textContent = 'Saving…';
+        var res = await db.from('characters').update({ name: name, bio: bio || null }).eq('id', ch.id).select().single();
+        if (res.error) { document.getElementById('ed-msg').textContent = 'Could not save: ' + res.error.message; return; }
+        ch.name = res.data.name; ch.bio = res.data.bio;
+        editing = false;
+        renderProfile(ch);
+      });
+    }
+    var shareBtn = document.getElementById('share');
+    if (shareBtn) shareBtn.addEventListener('click', function (e) {
       if (navigator.share) { navigator.share({ title: ch.name, url: location.href }).catch(function () {}); }
       else if (navigator.clipboard) { navigator.clipboard.writeText(location.href); e.target.textContent = 'Link copied'; }
     });
@@ -126,6 +161,7 @@
     var slug = location.hash.replace(/^#\/?/, '');
     var ch = chars.filter(function (c) { return c.slug === slug; })[0];
     tab = 'looks';
+    editing = false;
     if (ch) renderProfile(ch); else renderHome();
     window.scrollTo(0, 0);
   }
@@ -133,7 +169,7 @@
   async function load() {
     app.innerHTML = '<p class="empty">Loading…</p>';
     var res = await Promise.all([
-      db.from('characters').select('id, slug, kind, name, bio, avatar_url, creator_handle, sort, created_at').order('sort').order('created_at'),
+      db.from('characters').select('id, creator_id, slug, kind, name, bio, avatar_url, creator_handle, sort, created_at').order('sort').order('created_at'),
       db.from('images').select('character_id, url, sort, created_at').eq('is_live', true).order('sort').order('created_at')
     ]);
     if (res[0].error) { app.innerHTML = '<p class="empty">Could not load the feed. Please refresh.</p>'; return; }
@@ -146,6 +182,46 @@
     route();
   }
 
+  // ---------- New character from the website ----------
+  function slugify(str) {
+    return str.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 34) || 'item';
+  }
+  var dialog = document.getElementById('new-dialog');
+  document.getElementById('create-btn').addEventListener('click', function () {
+    if (!user) { location.href = 'admin.html'; return; }
+    document.getElementById('nc-msg').textContent = '';
+    dialog.showModal();
+    document.getElementById('nc-name').focus();
+  });
+  document.getElementById('nc-cancel').addEventListener('click', function () { dialog.close(); });
+  document.getElementById('new-char-form').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var name = document.getElementById('nc-name').value.trim();
+    if (!name) return;
+    document.getElementById('nc-msg').textContent = 'Creating…';
+    var row = {
+      creator_id: user.id,
+      kind: document.getElementById('nc-kind').value,
+      name: name,
+      bio: document.getElementById('nc-bio').value.trim() || null,
+      slug: slugify(name) + '-' + Math.random().toString(36).slice(2, 6),
+      creator_handle: '@' + user.email.split('@')[0],
+      sort: chars.length + 1
+    };
+    var res = await db.from('characters').insert(row).select().single();
+    if (res.error) { document.getElementById('nc-msg').textContent = 'Could not create: ' + res.error.message; return; }
+    e.target.reset();
+    dialog.close();
+    await load();
+    location.hash = '#/' + res.data.slug;
+  });
+
+  db.auth.onAuthStateChange(function (_evt, session) {
+    var was = user && user.id;
+    user = session ? session.user : null;
+    if ((user && user.id) !== was && chars.length) route();
+  });
+
   window.addEventListener('hashchange', route);
-  load();
+  db.auth.getSession().then(function (r) { user = r.data.session ? r.data.session.user : null; load(); });
 })();

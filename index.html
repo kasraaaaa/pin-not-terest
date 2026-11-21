@@ -23,11 +23,28 @@
         <label for="search" class="sr">Search characters, brands and looks</label>
         <input id="search" type="search" placeholder="Search characters, brands, looks">
       </div>
-      <a href="admin.html" class="btn btn-dark" style="display:inline-flex;align-items:center">Create character</a>
+      <button type="button" id="create-btn" class="btn btn-dark">+ New character</button>
     </div>
   </header>
 
   <main id="app" class="wrap"></main>
+
+  <dialog id="new-dialog" class="dialog" aria-labelledby="new-title">
+    <form id="new-char-form" class="stack" method="dialog">
+      <h2 id="new-title" style="margin:0 0 4px">New character or brand</h2>
+      <label for="nc-kind">Type</label>
+      <select id="nc-kind" class="field"><option value="character">Character (model)</option><option value="brand">Brand</option></select>
+      <label for="nc-name">Name</label>
+      <input id="nc-name" class="field" required maxlength="80" autocomplete="off">
+      <label for="nc-bio">One-line bio <span class="muted">(optional)</span></label>
+      <input id="nc-bio" class="field" maxlength="300" autocomplete="off">
+      <p id="nc-msg" class="muted" role="status"></p>
+      <div class="actions" style="justify-content:flex-end">
+        <button type="button" id="nc-cancel" class="btn">Cancel</button>
+        <button type="submit" class="btn btn-dark">Create</button>
+      </div>
+    </form>
+  </dialog>
 
   <footer class="site-footer">
     <div class="wrap footer-row">

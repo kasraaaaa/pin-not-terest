@@ -43,6 +43,10 @@
   async function loadChars() {
     var res = await db.from('characters').select('*').eq('creator_id', user.id).order('sort').order('created_at');
     chars = res.data || [];
+    if (!current && location.hash.length > 1) {
+      var want = decodeURIComponent(location.hash.slice(1));
+      current = chars.filter(function (c) { return c.slug === want; })[0] || null;
+    }
     var list = $('char-list');
     if (!chars.length) {
       list.innerHTML = '<li class="muted">Nothing yet.</li>';
@@ -95,9 +99,17 @@
     $('detail').innerHTML =
       '<div class="detail-head">' +
         '<div><p class="eyebrow">' + c.kind + '</p><h1>' + esc(c.name) + '</h1>' +
+        (c.bio ? '<p class="muted" style="margin:0 0 6px">' + esc(c.bio) + '</p>' : '') +
         '<p class="muted">' + imgs.length + ' images · ' + live + ' live · <a href="./#/' + esc(c.slug) + '" target="_blank" rel="noopener">View public profile</a></p></div>' +
-        '<button type="button" id="upload" class="btn btn-dark">Upload images</button>' +
+        '<div class="actions" style="margin:0"><button type="button" id="edit-details" class="btn">Edit name</button>' +
+        '<button type="button" id="upload" class="btn btn-dark">Upload images</button></div>' +
       '</div>' +
+      '<form id="details-form" class="stack" hidden style="max-width:460px;margin:0 0 28px">' +
+        '<label for="d-name">Name</label><input id="d-name" class="field" required maxlength="80" value="' + esc(c.name) + '">' +
+        '<label for="d-bio">One-line bio</label><input id="d-bio" class="field" maxlength="300" value="' + esc(c.bio || '') + '">' +
+        '<p id="d-msg" class="muted" role="status"></p>' +
+        '<div class="actions" style="margin:0"><button type="button" id="d-cancel" class="btn">Cancel</button><button type="submit" class="btn btn-dark">Save</button></div>' +
+      '</form>' +
       (imgs.length ? '<div class="admin-grid">' + imgs.map(function (i) {
         var isAvatar = c.avatar_url === i.url;
         return '<figure class="admin-card' + (i.is_live ? ' is-live' : '') + '">' +
@@ -111,6 +123,17 @@
       : '<p class="empty">No images yet. Upload full-body looks, then switch on the ones you want live.</p>');
 
     $('upload').addEventListener('click', function () { openUpload(c); });
+    $('edit-details').addEventListener('click', function () { $('details-form').hidden = false; $('d-name').focus(); });
+    $('d-cancel').addEventListener('click', function () { $('details-form').hidden = true; });
+    $('details-form').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var name = $('d-name').value.trim();
+      if (!name) return;
+      $('d-msg').textContent = 'Saving…';
+      var r = await db.from('characters').update({ name: name, bio: $('d-bio').value.trim() || null }).eq('id', c.id);
+      if (r.error) { $('d-msg').textContent = 'Could not save: ' + r.error.message; return; }
+      loadChars();
+    });
     document.querySelectorAll('[data-live]').forEach(function (cb) {
       cb.addEventListener('change', async function () {
         await db.from('images').update({ is_live: cb.checked }).eq('id', cb.getAttribute('data-live'));
