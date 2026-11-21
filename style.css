@@ -242,3 +242,11 @@ a:hover .img { opacity: .88; }
 .shop-info .price { font-weight: 600; margin-top: 4px; }
 .shop-card .add-btn { align-self: flex-start; }
 .section-h { font-size: 22px; font-weight: 600; margin: 56px 0 20px; }
+
+/* Following */
+.nav-count { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 6px; border-radius: 9px; background: #111; color: #fff; font-size: 11px; font-weight: 600; vertical-align: 1px; }
+.following-list { display: flex; flex-wrap: wrap; gap: 8px; margin: -12px 0 32px; }
+.follow-chip { display: inline-flex; align-items: center; gap: 10px; border: 1px solid #dcdcdc; border-radius: 22px; padding: 0 14px; min-height: 40px; font-size: 13px; font-weight: 500; }
+.follow-chip .link { font-size: 12px; color: #6b6b6b; }
+.pin { position: relative; }
+.new-badge { position: absolute; z-index: 1; top: 12px; left: 12px; background: #111; color: #fff; font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; border-radius: 12px; padding: 5px 10px; pointer-events: none; }

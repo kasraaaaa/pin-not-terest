@@ -10,6 +10,7 @@
   var chars = [];
   var filter = 'all';
   var following = {};
+  var lastSeen = 0;
   var tab = 'looks';
   var user = null;
   var editing = false;
@@ -276,7 +277,7 @@
             '<div class="actions">' +
               (mine
                 ? '<button type="button" id="edit" class="btn btn-dark">Edit profile</button><a href="admin.html#' + esc(ch.slug) + '" class="btn" style="display:inline-flex;align-items:center">Manage images</a>'
-                : '<button type="button" id="follow" class="btn ' + (f ? '' : 'btn-dark') + '">' + (f ? 'Following' : 'Follow') + '</button>') +
+                : '<button type="button" id="follow" class="btn ' + (f ? '' : 'btn-dark') + '" aria-pressed="' + f + '">' + (f ? 'Following ✓' : 'Follow style') + '</button>') +
               '<button type="button" id="share" class="btn">Share</button>' +
             '</div>' +
             (mine ? '<p class="owner-note">You created this</p>' : '')
@@ -286,7 +287,10 @@
       '</div>';
 
     var followBtn = document.getElementById('follow');
-    if (followBtn) followBtn.addEventListener('click', function () { following[ch.id] = !f; renderProfile(ch); });
+    if (followBtn) followBtn.addEventListener('click', async function () {
+      var ok = await toggleFollow(ch);
+      if (ok) renderProfile(ch);
+    });
     var editBtn = document.getElementById('edit');
     if (editBtn) editBtn.addEventListener('click', function () { editing = true; renderProfile(ch); document.getElementById('ed-name').focus(); });
     var editForm = document.getElementById('edit-form');
@@ -315,6 +319,127 @@
     });
   }
 
+  // ---------- Shopper accounts and following ----------
+  function seenKey() { return 'pnt_seen_' + (user ? user.id : ''); }
+  function readSeen() { try { return Number(localStorage.getItem(seenKey()) || 0); } catch (e) { return 0; } }
+  function writeSeen(t) { try { localStorage.setItem(seenKey(), String(t)); } catch (e) {} }
+
+  async function loadFollows() {
+    following = {};
+    if (!user) return;
+    var r = await db.from('follows').select('character_id').eq('user_id', user.id);
+    (r.data || []).forEach(function (x) { following[x.character_id] = true; });
+  }
+  async function toggleFollow(ch) {
+    if (!user) { openSignIn('Sign in to follow ' + ch.name + '\u2019s style. You\u2019ll see their newest looks under Following.'); return false; }
+    if (following[ch.id]) {
+      var r1 = await db.from('follows').delete().eq('user_id', user.id).eq('character_id', ch.id);
+      if (r1.error) { alert('Could not unfollow. Please try again.'); return false; }
+      delete following[ch.id];
+    } else {
+      var r2 = await db.from('follows').insert({ user_id: user.id, character_id: ch.id });
+      if (r2.error && r2.error.code !== '23505') { alert('Could not follow. Please try again.'); return false; }
+      following[ch.id] = true;
+    }
+    updateHeader();
+    return true;
+  }
+  function followedLooks() {
+    var list = [];
+    chars.forEach(function (ch) {
+      if (!following[ch.id]) return;
+      ch.images.forEach(function (im, i) { list.push({ ch: ch, im: im, i: i, t: Date.parse(im.created_at) || 0 }); });
+    });
+    return list.sort(function (a, b) { return b.t - a.t; });
+  }
+  function updateHeader() {
+    var acct = document.getElementById('account-btn');
+    acct.textContent = user ? 'Account' : 'Sign in';
+    var isCreator = !!(user && chars.some(function (c) { return c.creator_id === user.id; }));
+    document.getElementById('create-btn').hidden = !isCreator;
+    var badge = document.getElementById('new-count');
+    var fresh = (user && lastSeen) ? followedLooks().filter(function (l) { return l.t > lastSeen; }).length : 0;
+    badge.hidden = !fresh || location.hash === '#/following';
+    badge.textContent = fresh > 99 ? '99+' : String(fresh);
+  }
+  function dateLabel(t) {
+    if (!t) return '';
+    try { return new Date(t).toLocaleDateString('en-CA', { month: 'short', day: 'numeric' }); } catch (e) { return ''; }
+  }
+
+  function renderFollowing() {
+    document.title = 'Following — Pin Not Terest';
+    if (!user) {
+      app.innerHTML = '<div class="home"><section class="intro"><div><p class="eyebrow">Following</p><h1>Keep up with the<br>styles you like.</h1></div></section>' +
+        '<div class="panel narrow" style="text-align:center"><p>Follow models whose outfits you like. Their newest looks show up here, ready to shop.</p>' +
+        '<button type="button" class="btn btn-dark" id="following-signin">Sign in to start following</button></div></div>';
+      document.getElementById('following-signin').addEventListener('click', function () { openSignIn(); });
+      return;
+    }
+    var followed = chars.filter(function (c) { return following[c.id]; });
+    var looks = followedLooks();
+    var seenBefore = lastSeen;
+    var html = '<div class="home"><section class="intro"><div><p class="eyebrow">Following</p><h1>New from the styles<br>you follow.</h1></div></section>';
+    if (!followed.length) {
+      html += '<div class="panel narrow" style="text-align:center"><p>You\u2019re not following anyone yet. Open a model\u2019s profile and choose <strong>Follow style</strong>.</p>' +
+        '<a href="#/characters" class="btn btn-dark" style="display:inline-flex;align-items:center">Browse characters</a></div></div>';
+      app.innerHTML = html; return;
+    }
+    html += '<div class="following-list" aria-label="Models you follow">' + followed.map(function (c) {
+      return '<span class="follow-chip"><a href="#/' + esc(c.slug) + '">' + esc(c.name) + '</a>' +
+        '<button type="button" class="link" data-unfollow="' + c.id + '" aria-label="Unfollow ' + esc(c.name) + '">Unfollow</button></span>';
+    }).join('') + '</div>';
+    if (!looks.length) html += '<p class="empty">No looks posted yet by the models you follow.</p>';
+    else html += '<section class="feed" aria-label="Newest looks">' + looks.map(function (l) {
+      var isNew = seenBefore && l.t > seenBefore;
+      var look = { url: l.im.url, id: l.im.id, products: l.im.products };
+      return '<div class="pin">' + (isNew ? '<span class="new-badge">New</span>' : '') +
+        openButton(l.ch, l.i, look, tile(l.ch, l.i, look, { w: 600 })) +
+        '<a class="pin-meta" href="#/' + esc(l.ch.slug) + '"><strong>' + esc(l.ch.name) + '</strong><span>' + (isNew ? 'New · ' : '') + 'Added ' + dateLabel(l.t) + '</span></a></div>';
+    }).join('') + '</section>';
+    app.innerHTML = html + '</div>';
+    app.querySelectorAll('[data-unfollow]').forEach(function (b) {
+      b.addEventListener('click', async function () {
+        var c = chars.filter(function (x) { return x.id === b.getAttribute('data-unfollow'); })[0];
+        if (c && await toggleFollow(c)) renderFollowing();
+      });
+    });
+    // everything currently shown counts as seen on the next visit
+    var newest = looks.length ? looks[0].t : 0;
+    if (newest > lastSeen) { lastSeen = newest; writeSeen(newest); }
+    updateHeader();
+  }
+
+  var signinDialog = document.getElementById('signin-dialog');
+  function openSignIn(why) {
+    document.getElementById('signin-why').textContent = why || 'Follow the models whose style you like and see what they wear each season.';
+    document.getElementById('signin-msg').textContent = '';
+    signinDialog.showModal();
+  }
+  function returnUrl() { return location.origin + location.pathname; }
+  document.getElementById('signin-close').addEventListener('click', function () { signinDialog.close(); });
+  document.getElementById('signin-google').addEventListener('click', async function () {
+    var r = await db.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: returnUrl(), queryParams: { prompt: 'select_account' } } });
+    if (r.error) document.getElementById('signin-msg').textContent = 'Google sign-in is not available yet. Use the email link below.';
+  });
+  document.getElementById('signin-form').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var email = document.getElementById('signin-email').value.trim();
+    document.getElementById('signin-msg').textContent = 'Sending…';
+    var r = await db.auth.signInWithOtp({ email: email, options: { emailRedirectTo: returnUrl() } });
+    document.getElementById('signin-msg').textContent = r.error ? 'Could not send the link: ' + r.error.message : 'Check your email and click the link to sign in.';
+  });
+  var accountDialog = document.getElementById('account-dialog');
+  document.getElementById('account-btn').addEventListener('click', function () {
+    if (!user) { openSignIn(); return; }
+    document.getElementById('account-email').textContent = 'Signed in as ' + (user.email || '');
+    accountDialog.showModal();
+  });
+  document.getElementById('account-close').addEventListener('click', function () { accountDialog.close(); });
+  document.getElementById('account-following').addEventListener('click', function () { accountDialog.close(); });
+  document.getElementById('account-signout').addEventListener('click', async function () { await db.auth.signOut(); accountDialog.close(); });
+  [signinDialog, accountDialog].forEach(function (d) { d.addEventListener('click', function (e) { if (e.target === d) d.close(); }); });
+
   function route() {
     var slug = location.hash.replace(/^#\/?/, '');
     tab = 'looks';
@@ -327,6 +452,12 @@
       renderSearch(q);
       return;
     }
+    if (slug === 'following') {
+      setNav('following');
+      renderFollowing();
+      window.scrollTo(0, 0);
+      return;
+    }
     if (slug === 'characters' || slug === 'brands') {
       setNav(slug);
       renderDirectory(slug === 'brands' ? 'brand' : 'character');
@@ -337,6 +468,7 @@
       else { setNav('discover'); renderHome(); }
     }
     window.scrollTo(0, 0);
+    updateHeader();
   }
 
   async function load() {
@@ -403,7 +535,12 @@
   db.auth.onAuthStateChange(function (_evt, session) {
     var was = user && user.id;
     user = session ? session.user : null;
-    if ((user && user.id) !== was && chars.length) route();
+    if ((user && user.id) === was) return;
+    lastSeen = readSeen();
+    loadFollows().then(function () {
+      if (signinDialog.open && user) signinDialog.close();
+      if (chars.length) route(); else updateHeader();
+    });
   });
 
   // ---------- Shop the look: pop-up ----------
@@ -547,5 +684,10 @@
   });
 
   window.addEventListener('hashchange', route);
-  db.auth.getSession().then(function (r) { user = r.data.session ? r.data.session.user : null; load(); });
+  db.auth.getSession().then(async function (r) {
+    user = r.data.session ? r.data.session.user : null;
+    lastSeen = readSeen();
+    await loadFollows();
+    load();
+  });
 })();
