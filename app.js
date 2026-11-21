@@ -83,6 +83,40 @@
     });
   }
 
+  function setNav(key) {
+    document.querySelectorAll('[data-nav]').forEach(function (a) {
+      var on = a.getAttribute('data-nav') === key;
+      a.classList.toggle('active', on);
+      if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+    });
+  }
+
+  // Characters and Brands pages: a directory of profile cards for one kind.
+  function renderDirectory(kind) {
+    var isBrand = kind === 'brand';
+    var title = isBrand ? 'Brands' : 'Characters';
+    document.title = title + ' — Pin Not Terest';
+    var list = chars.filter(function (ch) { return (ch.kind || 'character') === kind; });
+    var cards = list.map(function (ch) {
+      var looks = looksOf(ch);
+      var count = ch.images.length;
+      return '<a class="dir-card" href="#/' + esc(ch.slug) + '">' +
+        tile(ch, 0, looks[0], { w: 600, h: 800, crop: 'fill', height: looks[0].url ? null : 360 }) +
+        '<div class="dir-meta"><span class="dot" aria-hidden="true" style="' + avatarStyle(ch, 80) + '"></span>' +
+        '<div><strong>' + esc(ch.name) + '</strong>' +
+        '<span>' + (count ? count + (count === 1 ? ' look' : ' looks') : 'No looks yet') +
+        (ch.creator_handle ? ' · by ' + esc(ch.creator_handle) : '') + '</span></div></div></a>';
+    }).join('');
+    if (!cards) cards = '<p class="empty">No ' + title.toLowerCase() + ' yet.</p>';
+    app.innerHTML =
+      '<div class="home">' +
+        '<section class="intro"><div><p class="eyebrow">' + title + '</p>' +
+        '<h1>' + (isBrand ? 'Brands, styled<br>on AI models.' : 'Every AI character,<br>in one place.') + '</h1></div>' +
+        '<p class="dir-count">' + list.length + ' ' + (list.length === 1 ? title.slice(0, -1).toLowerCase() : title.toLowerCase()) + '</p></section>' +
+        '<section class="dir-grid" aria-label="' + title + '">' + cards + '</section>' +
+      '</div>';
+  }
+
   function renderProfile(ch) {
     document.title = ch.name + ' — Pin Not Terest';
     var f = !!following[ch.id];
@@ -159,10 +193,16 @@
 
   function route() {
     var slug = location.hash.replace(/^#\/?/, '');
-    var ch = chars.filter(function (c) { return c.slug === slug; })[0];
     tab = 'looks';
     editing = false;
-    if (ch) renderProfile(ch); else renderHome();
+    if (slug === 'characters' || slug === 'brands') {
+      setNav(slug);
+      renderDirectory(slug === 'brands' ? 'brand' : 'character');
+    } else {
+      var ch = chars.filter(function (c) { return c.slug === slug; })[0];
+      if (ch) { setNav(ch.kind === 'brand' ? 'brands' : 'characters'); renderProfile(ch); }
+      else { setNav('discover'); renderHome(); }
+    }
     window.scrollTo(0, 0);
   }
 
