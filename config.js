@@ -30,7 +30,7 @@ window.pntEmailLink = async function (db, email, redirect, msgEl, btn) {
   var r = await db.auth.signInWithOtp({ email: email, options: { emailRedirectTo: redirect } });
   if (btn) setTimeout(function () { btn.disabled = false; }, 3000);
   if (!r.error) {
-    try { localStorage.setItem(key, String(Date.now())); } catch (e) {}
+    try { localStorage.setItem(key, String(Date.now())); localStorage.setItem('pnt_last_email', email); } catch (e) {}
     msgEl.textContent = 'Check your email for the sign-in link (also your spam folder). The link works once; if you use it in a different browser tab, close the old tabs.';
     return;
   }
@@ -69,4 +69,10 @@ window.pntWelcome = async function (db, user) {
   requestAnimationFrame(function () { el.classList.add('in'); });
   setTimeout(function () { el.classList.remove('in'); }, 1200);
   setTimeout(function () { el.remove(); }, 1600);
+};
+
+// Fill in the email last used on this device, so people don't retype it.
+window.pntPrefillEmail = function (input) {
+  if (!input || input.value) return;
+  try { var e = localStorage.getItem('pnt_last_email'); if (e) input.value = e; } catch (err) {}
 };

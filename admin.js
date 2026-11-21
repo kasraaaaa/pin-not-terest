@@ -50,7 +50,7 @@
     $('login').hidden = !!user;
     $('signout').hidden = !user;
     $('who').textContent = user ? user.email : '';
-    if (!user) { $('dash').hidden = true; $('onboard').hidden = true; return; }
+    if (!user) { $('dash').hidden = true; $('onboard').hidden = true; window.pntPrefillEmail($('email')); return; }
     await loadMe();
     window.pntWelcome(db, user);
     var creator = !!(me && me.is_creator);

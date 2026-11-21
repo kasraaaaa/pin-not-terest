@@ -477,6 +477,7 @@
   function openSignIn(why) {
     document.getElementById('signin-why').textContent = why || 'Follow the models whose style you like and see what they wear each season.';
     document.getElementById('signin-msg').textContent = '';
+    window.pntPrefillEmail(document.getElementById('signin-email'));
     signinDialog.showModal();
   }
   function returnUrl() { return location.origin + location.pathname; }
