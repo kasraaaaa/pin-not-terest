@@ -330,17 +330,45 @@
     var r = await db.from('follows').select('character_id').eq('user_id', user.id);
     (r.data || []).forEach(function (x) { following[x.character_id] = true; });
   }
+  // The real sign-in the database will see (not just what this page remembers).
+  async function liveUser() {
+    var r = await db.auth.getSession();
+    var session = r.data && r.data.session;
+    if (!session) {
+      var rr = await db.auth.refreshSession();
+      session = rr.data && rr.data.session;
+    }
+    return session ? session.user : null;
+  }
+  function signedOutAgain(ch) {
+    user = null;
+    following = {};
+    updateHeader();
+    openSignIn('Your sign-in on this page has expired. Please sign in again to follow ' + ch.name + '\u2019s style.');
+  }
   async function toggleFollow(ch) {
     if (!user) { openSignIn('Sign in to follow ' + ch.name + '\u2019s style. You\u2019ll see their newest looks under Following.'); return false; }
-    if (following[ch.id]) {
-      var r1 = await db.from('follows').delete().eq('user_id', user.id).eq('character_id', ch.id);
-      if (r1.error) { alert('Could not unfollow. Please try again.'); return false; }
-      delete following[ch.id];
-    } else {
-      var r2 = await db.from('follows').insert({ user_id: user.id, character_id: ch.id });
-      if (r2.error && r2.error.code !== '23505') { alert('Could not follow. Please try again.'); return false; }
-      following[ch.id] = true;
+    var me = await liveUser();
+    if (!me) { signedOutAgain(ch); return false; }
+    if (me.id !== user.id) { user = me; await loadFollows(); }
+    async function attempt() {
+      if (following[ch.id]) return db.from('follows').delete().eq('user_id', me.id).eq('character_id', ch.id);
+      return db.from('follows').insert({ user_id: me.id, character_id: ch.id });
     }
+    var r = await attempt();
+    if (r.error && r.error.code !== '23505') {
+      // sign-in may have gone stale: refresh once and retry
+      var rr = await db.auth.refreshSession();
+      if (!rr.data || !rr.data.session) { signedOutAgain(ch); return false; }
+      me = rr.data.session.user;
+      r = await attempt();
+      if (r.error && r.error.code !== '23505') {
+        if (r.error.code === '42501' || r.status === 401) { signedOutAgain(ch); return false; }
+        alert('Could not update. Please try again.');
+        return false;
+      }
+    }
+    if (following[ch.id]) delete following[ch.id]; else following[ch.id] = true;
     updateHeader();
     return true;
   }
@@ -531,6 +559,19 @@
     await load();
     location.hash = '#/' + res.data.slug;
   });
+
+  // When you come back to this tab, or sign in/out in another tab, re-check the real sign-in.
+  async function resyncUser() {
+    var r = await db.auth.getSession();
+    var now = r.data && r.data.session ? r.data.session.user : null;
+    if ((now && now.id) === (user && user.id)) return;
+    user = now;
+    lastSeen = readSeen();
+    await loadFollows();
+    if (chars.length) route(); else updateHeader();
+  }
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) resyncUser(); });
+  window.addEventListener('storage', function (e) { if (e.key && e.key.indexOf('sb-') === 0) resyncUser(); });
 
   db.auth.onAuthStateChange(function (_evt, session) {
     var was = user && user.id;
