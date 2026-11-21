@@ -6,6 +6,9 @@
   var chars = [];
   var current = null;
   var maxSort = 0;
+  var view = 'chars';
+  var products = [];
+  var editingProduct = null;
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -68,6 +71,7 @@
       list.querySelectorAll('[data-id]').forEach(function (b) {
         b.addEventListener('click', function () {
           current = chars.filter(function (c) { return c.id === b.getAttribute('data-id'); })[0];
+          view = 'chars';
           loadChars();
         });
       });
@@ -75,8 +79,14 @@
     if (current) {
       current = chars.filter(function (c) { return c.id === current.id; })[0] || null;
     }
-    if (current) loadDetail(); else $('detail').innerHTML = '<p class="muted">Pick a character or brand on the left, or create one.</p>';
+    var pr = await db.from('products').select('*').eq('creator_id', user.id).order('created_at', { ascending: false });
+    products = pr.data || [];
+    $('product-count').textContent = products.length ? String(products.length) : '';
+    $('products-btn').setAttribute('aria-pressed', String(view === 'products'));
+    if (view === 'products') { renderProducts(); return; }
+    if (current) loadDetail(); else $('detail').innerHTML = '<p class="muted">Pick a character or brand on the left, or create one. Add what the models wear under <strong>Products</strong>.</p>';
   }
+  $('products-btn').addEventListener('click', function () { view = 'products'; current = null; loadChars(); });
 
   $('new-form').addEventListener('submit', async function (e) {
     e.preventDefault();
@@ -95,13 +105,14 @@
     $('new-msg').textContent = '';
     e.target.reset();
     current = res.data;
+    view = 'chars';
     loadChars();
   });
 
   // ---------- 3 + 4. Image upload and go-live picker ----------
   async function loadDetail() {
     var c = current;
-    var res = await db.from('images').select('*').eq('character_id', c.id).order('sort').order('created_at');
+    var res = await db.from('images').select('*, image_products(product_id)').eq('character_id', c.id).order('sort').order('created_at');
     var imgs = res.data || [];
     maxSort = imgs.reduce(function (m, i) { return Math.max(m, i.sort || 0); }, 0);
     var live = imgs.filter(function (i) { return i.is_live; }).length;
@@ -131,6 +142,7 @@
           '<img src="' + esc(window.pntImg(i.url, { w: 400, h: 500, crop: 'fill', gravity: 'auto' })) + '" alt="" loading="lazy" draggable="false">' +
           '<figcaption>' +
             '<label class="switch"><input type="checkbox" data-live="' + i.id + '"' + (i.is_live ? ' checked' : '') + '> <span>' + (i.is_live ? 'Live' : 'Hidden') + '</span></label>' +
+            '<button type="button" class="tag-btn" data-tag="' + i.id + '">' + (i.image_products && i.image_products.length ? 'Products tagged: ' + i.image_products.length : '+ Tag products') + '</button>' +
             '<button type="button" class="link" data-avatar="' + i.id + '"' + (isAvatar ? ' disabled' : '') + '>' + (isAvatar ? 'Profile photo' : 'Use as profile photo') + '</button>' +
             '<button type="button" class="link danger" data-del="' + i.id + '">Remove</button>' +
           '</figcaption></figure>';
@@ -234,6 +246,141 @@
         if (!confirm('Remove this image from the profile?')) return;
         await db.from('images').delete().eq('id', b.getAttribute('data-del'));
         loadDetail();
+      });
+    });
+    document.querySelectorAll('[data-tag]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var img = imgs.filter(function (i) { return i.id === b.getAttribute('data-tag'); })[0];
+        openTagger(img);
+      });
+    });
+  }
+
+  // ---------- Tag products on a picture ----------
+  var tagging = null;
+  function openTagger(img) {
+    tagging = img;
+    var have = {};
+    (img.image_products || []).forEach(function (t) { have[t.product_id] = true; });
+    $('tag-msg').textContent = '';
+    $('tag-list').innerHTML = products.length
+      ? '<div class="tag-row tag-photo"><img src="' + esc(window.pntImg(img.url, { w: 160, h: 200, crop: 'fill', gravity: 'auto' })) + '" alt=""></div>' +
+        products.map(function (p) {
+          return '<label class="tag-row"><input type="checkbox" value="' + p.id + '"' + (have[p.id] ? ' checked' : '') + '>' +
+            '<span class="thumb" style="' + (p.image_url ? 'background-image:url(\'' + esc(window.pntImg(p.image_url, { w: 80, h: 80, crop: 'fill' })) + '\')' : '') + '"></span>' +
+            '<span class="grow"><strong>' + esc(p.name) + '</strong>' + (p.category ? '<br><span class="muted">' + esc(p.category) + '</span>' : '') + '</span>' +
+            '<span>' + money(p.price, p.currency) + '</span></label>';
+        }).join('')
+      : '<p class="empty" style="padding:24px 0">No products yet. Add them under <strong>Products</strong> first.</p>';
+    $('tag-dialog').showModal();
+  }
+  $('tag-cancel').addEventListener('click', function () { $('tag-dialog').close(); });
+  $('tag-form').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    if (!tagging) return;
+    var picked = Array.prototype.map.call($('tag-list').querySelectorAll('input:checked'), function (cb) { return cb.value; });
+    var had = (tagging.image_products || []).map(function (t) { return t.product_id; });
+    var add = picked.filter(function (id) { return had.indexOf(id) === -1; });
+    var remove = had.filter(function (id) { return picked.indexOf(id) === -1; });
+    $('tag-msg').textContent = 'Saving…';
+    var errs = [];
+    if (remove.length) {
+      var r1 = await db.from('image_products').delete().eq('image_id', tagging.id).in('product_id', remove);
+      if (r1.error) errs.push(r1.error.message);
+    }
+    if (add.length) {
+      var r2 = await db.from('image_products').insert(add.map(function (id) {
+        return { image_id: tagging.id, product_id: id, sort: picked.indexOf(id) };
+      }));
+      if (r2.error) errs.push(r2.error.message);
+    }
+    if (errs.length) { $('tag-msg').textContent = 'Could not save: ' + errs[0]; return; }
+    $('tag-dialog').close();
+    loadDetail();
+  });
+
+  // ---------- Product inventory ----------
+  function money(v, cur) {
+    try { return new Intl.NumberFormat('en-CA', { style: 'currency', currency: cur || 'CAD' }).format(Number(v)); }
+    catch (e) { return '$' + Number(v).toFixed(2); }
+  }
+  var productPhoto = null;
+  function renderProducts() {
+    var p = editingProduct;
+    productPhoto = p ? p.image_url : null;
+    $('detail').innerHTML =
+      '<div class="detail-head"><div><p class="eyebrow">Inventory</p><h1>Products</h1>' +
+      '<p class="muted">Everything your models wear that customers can buy. Tag products on pictures from each character\'s page.</p></div></div>' +
+      '<form id="product-form" class="product-form">' +
+        '<h2>' + (p ? 'Edit product' : 'Add a product') + '</h2>' +
+        '<div class="pf-grid">' +
+          '<div class="pf-field pf-wide"><label for="pf-name">Name</label><input id="pf-name" class="field" required maxlength="120" placeholder="e.g. Grey wool blazer" value="' + esc(p ? p.name : '') + '"></div>' +
+          '<div class="pf-field"><label for="pf-price">Price (CAD)</label><input id="pf-price" class="field" required type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" value="' + (p ? Number(p.price).toFixed(2) : '') + '"></div>' +
+          '<div class="pf-field"><label for="pf-cat">Category</label><input id="pf-cat" class="field" maxlength="40" list="pf-cats" placeholder="Dress, Heels, Watch…" value="' + esc(p && p.category ? p.category : '') + '">' +
+            '<datalist id="pf-cats"><option>Dress</option><option>Top</option><option>Jacket</option><option>Coat</option><option>Trousers</option><option>Skirt</option><option>Heels</option><option>Shoes</option><option>Sneakers</option><option>Boots</option><option>Bag</option><option>Watch</option><option>Ring</option><option>Necklace</option><option>Earrings</option><option>Bracelet</option><option>Sunglasses</option><option>Hat</option></datalist></div>' +
+        '</div>' +
+        '<div class="pf-photo"><span id="pf-thumb" class="thumb big" style="' + (productPhoto ? 'background-image:url(\'' + esc(window.pntImg(productPhoto, { w: 160, h: 160, crop: 'fill' })) + '\')' : '') + '"></span>' +
+          '<button type="button" id="pf-upload" class="btn">' + (productPhoto ? 'Change photo' : 'Add product photo (optional)') + '</button></div>' +
+        '<p id="pf-msg" class="muted" role="status"></p>' +
+        '<div class="actions" style="margin:0">' + (p ? '<button type="button" id="pf-cancel" class="btn">Cancel</button>' : '') +
+          '<button type="submit" class="btn btn-dark">' + (p ? 'Save changes' : 'Add product') + '</button></div>' +
+      '</form>' +
+      (products.length
+        ? '<div class="product-list" role="list">' + products.map(function (x) {
+            return '<div class="product-row" role="listitem">' +
+              '<span class="thumb" style="' + (x.image_url ? 'background-image:url(\'' + esc(window.pntImg(x.image_url, { w: 96, h: 96, crop: 'fill' })) + '\')' : '') + '"></span>' +
+              '<span class="grow"><strong>' + esc(x.name) + '</strong>' + (x.category ? '<br><span class="muted">' + esc(x.category) + '</span>' : '') + '</span>' +
+              '<span class="price">' + money(x.price, x.currency) + '</span>' +
+              '<button type="button" class="link" data-pedit="' + x.id + '">Edit</button>' +
+              '<button type="button" class="link danger" data-pdel="' + x.id + '">Delete</button>' +
+            '</div>';
+          }).join('') + '</div>'
+        : '<p class="empty">No products yet. Add the first one above.</p>');
+
+    $('pf-upload').addEventListener('click', function () {
+      if (!window.cloudinary) { alert('The uploader did not load. Refresh and try again.'); return; }
+      window.cloudinary.createUploadWidget({
+        cloudName: cfg.cloudinaryCloud, uploadPreset: cfg.cloudinaryPreset,
+        folder: cfg.cloudinaryFolder + '/products', sources: ['local', 'url'], multiple: false,
+        maxFileSize: 10000000, clientAllowedFormats: ['jpg', 'jpeg', 'png', 'webp']
+      }, function (err, result) {
+        if (!err && result.event === 'success') {
+          productPhoto = result.info.secure_url;
+          $('pf-thumb').style.backgroundImage = "url('" + window.pntImg(productPhoto, { w: 160, h: 160, crop: 'fill' }) + "')";
+          $('pf-upload').textContent = 'Change photo';
+        }
+      }).open();
+    });
+    if ($('pf-cancel')) $('pf-cancel').addEventListener('click', function () { editingProduct = null; renderProducts(); });
+    $('product-form').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var row = {
+        name: $('pf-name').value.trim(),
+        price: Math.round(parseFloat($('pf-price').value) * 100) / 100,
+        category: $('pf-cat').value.trim() || null,
+        image_url: productPhoto || null
+      };
+      if (!row.name || !(row.price >= 0)) { $('pf-msg').textContent = 'Enter a name and a price.'; return; }
+      $('pf-msg').textContent = 'Saving…';
+      var r = editingProduct
+        ? await db.from('products').update(row).eq('id', editingProduct.id)
+        : await db.from('products').insert(Object.assign({ creator_id: user.id, currency: 'CAD' }, row));
+      if (r.error) { $('pf-msg').textContent = 'Could not save: ' + r.error.message; return; }
+      editingProduct = null;
+      loadChars();
+    });
+    document.querySelectorAll('[data-pedit]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        editingProduct = products.filter(function (x) { return x.id === b.getAttribute('data-pedit'); })[0];
+        renderProducts();
+        $('pf-name').focus();
+      });
+    });
+    document.querySelectorAll('[data-pdel]').forEach(function (b) {
+      b.addEventListener('click', async function () {
+        if (!confirm('Delete this product? It will also be removed from every picture it is tagged on.')) return;
+        await db.from('products').delete().eq('id', b.getAttribute('data-pdel'));
+        loadChars();
       });
     });
   }

@@ -45,7 +45,10 @@
     <section id="dash" hidden>
       <div class="dash-grid">
         <aside class="panel">
-          <p class="eyebrow">Your characters &amp; brands</p>
+          <button type="button" id="products-btn" class="char-btn products-btn" aria-pressed="false">
+            <span class="dot" aria-hidden="true" style="background:#111"></span><span>Products</span><span class="kind" id="product-count"></span>
+          </button>
+          <p class="eyebrow" style="margin-top:24px">Your characters &amp; brands</p>
           <ul id="char-list" class="char-list"></ul>
           <details class="new">
             <summary class="btn">+ New character / brand</summary>
@@ -68,6 +71,19 @@
       </div>
     </section>
   </main>
+
+  <dialog id="tag-dialog" class="dialog" aria-labelledby="tag-title">
+    <form id="tag-form" method="dialog" class="stack" style="margin-top:0">
+      <h2 id="tag-title" style="margin:0">What is the model wearing?</h2>
+      <p class="muted" style="margin:0">Tick every item in this picture. Customers will see them next to the picture with an Add to cart button.</p>
+      <div id="tag-list" class="tag-list"></div>
+      <p id="tag-msg" class="muted" role="status"></p>
+      <div class="actions" style="justify-content:flex-end;margin:0">
+        <button type="button" id="tag-cancel" class="btn">Cancel</button>
+        <button type="submit" class="btn btn-dark">Save</button>
+      </div>
+    </form>
+  </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://upload-widget.cloudinary.com/latest/global/all.js"></script>

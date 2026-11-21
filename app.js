@@ -23,7 +23,7 @@
 
   // Each character gets its live images, or 6 grey placeholders until it has some.
   function looksOf(ch) {
-    if (ch.images.length) return ch.images.map(function (im) { return { url: im.url }; });
+    if (ch.images.length) return ch.images.map(function (im) { return { url: im.url, id: im.id, products: im.products }; });
     return [0, 1, 2, 3, 4, 5].map(function () { return { url: null }; });
   }
 
@@ -46,6 +46,13 @@
     return s;
   }
 
+  function openButton(ch, i, look, inner) {
+    var n = (look.products || []).length;
+    return '<button type="button" class="pin-open" data-open="' + look.id + '" aria-label="Open ' + esc(ch.name) + ' look ' + num(i) + (n ? ', shop ' + n + ' items' : '') + '">' +
+      inner + (n ? '<span class="shop-badge" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>' + n + ' item' + (n === 1 ? '' : 's') + '</span>' : '') +
+      '</button>';
+  }
+
   function renderHome() {
     document.title = 'Pin Not Terest — Discover';
     var opts = [{ slug: 'all', name: 'All' }].concat(chars);
@@ -62,10 +69,15 @@
         var look = lists[c][i];
         if (!look) return;
         var h = look.url ? null : heights[(i + ch.index * 2) % 6];
-        pins += '<a class="pin" href="#/' + esc(ch.slug) + '">' +
-          tile(ch, i, look, { height: h, w: 600 }) +
-          '<div class="pin-meta"><span class="dot" aria-hidden="true" style="' + avatarStyle(ch, 60) + '"></span>' +
-          '<strong>' + esc(ch.name) + '</strong><span>' + (ch.kind === 'brand' ? 'Brand' : 'Look ' + num(i)) + '</span></div></a>';
+        var meta = '<span class="dot" aria-hidden="true" style="' + avatarStyle(ch, 60) + '"></span>' +
+          '<strong>' + esc(ch.name) + '</strong><span>' + (ch.kind === 'brand' ? 'Brand' : 'Look ' + num(i)) + '</span>';
+        if (look.url) {
+          pins += '<div class="pin">' + openButton(ch, i, look, tile(ch, i, look, { w: 600 })) +
+            '<a class="pin-meta" href="#/' + esc(ch.slug) + '">' + meta + '</a></div>';
+        } else {
+          pins += '<a class="pin" href="#/' + esc(ch.slug) + '">' + tile(ch, i, look, { height: h, w: 600 }) +
+            '<div class="pin-meta">' + meta + '</div></a>';
+        }
       });
     }
     if (!pins) pins = '<p class="empty">Nothing here yet.</p>';
@@ -127,7 +139,8 @@
     var body;
     if (tab === 'looks') {
       body = '<section class="grid" aria-label="Looks">' + looksOf(ch).map(function (look, i) {
-        return '<div>' + tile(ch, i, look, { w: 600, h: 750, crop: 'fill' }) + '<p>Look ' + num(i) + '</p></div>';
+        var t = tile(ch, i, look, { w: 600, h: 750, crop: 'fill' });
+        return '<div>' + (look.url ? openButton(ch, i, look, t) : t) + '<p>Look ' + num(i) + '</p></div>';
       }).join('') + '</section>';
     } else {
       body = '<p class="empty">Nothing here yet.</p>';
@@ -210,13 +223,17 @@
     app.innerHTML = '<p class="empty">Loading…</p>';
     var res = await Promise.all([
       db.from('characters').select('id, creator_id, slug, kind, name, bio, avatar_url, creator_handle, sort, created_at').order('sort').order('created_at'),
-      db.from('images').select('character_id, url, sort, created_at').eq('is_live', true).order('sort').order('created_at')
+      db.from('images').select('id, character_id, url, sort, created_at, image_products(sort, products(id, name, price, currency, category, image_url, is_active))').eq('is_live', true).order('sort').order('created_at')
     ]);
     if (res[0].error) { app.innerHTML = '<p class="empty">Could not load the feed. Please refresh.</p>'; return; }
     var imgs = res[1].data || [];
     chars = (res[0].data || []).map(function (c, i) {
       c.index = i;
-      c.images = imgs.filter(function (im) { return im.character_id === c.id; });
+      c.images = imgs.filter(function (im) { return im.character_id === c.id; }).map(function (im) {
+        im.products = (im.image_products || []).slice().sort(function (a, b) { return a.sort - b.sort; })
+          .map(function (t) { return t.products; }).filter(function (p) { return p && p.is_active !== false; });
+        return im;
+      });
       return c;
     });
     route();
@@ -261,6 +278,128 @@
     user = session ? session.user : null;
     if ((user && user.id) !== was && chars.length) route();
   });
+
+  // ---------- Shop the look: pop-up ----------
+  function money(v, cur) {
+    try { return new Intl.NumberFormat('en-CA', { style: 'currency', currency: cur || 'CAD' }).format(Number(v)); }
+    catch (e) { return '$' + Number(v).toFixed(2); }
+  }
+  var lookDialog = document.getElementById('look-dialog');
+  var openLook = null;
+  function findImage(id) {
+    for (var c = 0; c < chars.length; c++) {
+      for (var k = 0; k < chars[c].images.length; k++) {
+        if (chars[c].images[k].id === id) return { ch: chars[c], im: chars[c].images[k], i: k };
+      }
+    }
+    return null;
+  }
+  function renderLookItems() {
+    if (!openLook) return;
+    var items = openLook.im.products || [];
+    var box = document.getElementById('look-items');
+    if (!items.length) { box.innerHTML = '<p class="empty">No items tagged on this look yet.</p>'; return; }
+    box.innerHTML = items.map(function (p) {
+      var inCart = cart.some(function (x) { return x.id === p.id; });
+      return '<div class="look-item">' +
+        '<span class="thumb" style="' + (p.image_url ? 'background-image:url(\'' + esc(window.pntImg(p.image_url, { w: 112, h: 112, crop: 'fill' })) + '\')' : '') + '"></span>' +
+        '<span class="grow"><strong>' + esc(p.name) + '</strong>' + (p.category ? '<br><span class="muted">' + esc(p.category) + '</span>' : '') +
+        '<span class="price">' + money(p.price, p.currency) + '</span></span>' +
+        '<button type="button" class="btn btn-dark add-btn' + (inCart ? ' added' : '') + '" data-add="' + p.id + '">' + (inCart ? 'Added ✓' : 'Add to cart') + '</button>' +
+      '</div>';
+    }).join('');
+    box.querySelectorAll('[data-add]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var p = items.filter(function (x) { return x.id === b.getAttribute('data-add'); })[0];
+        addToCart(p);
+        renderLookItems();
+      });
+    });
+  }
+  function showLook(id) {
+    var f = findImage(id);
+    if (!f) return;
+    openLook = f;
+    var src = window.pntImg(f.im.url, { w: 1100 });
+    document.getElementById('look-img').innerHTML = '<img src="' + esc(src) + '" alt="' + esc(f.ch.name + ', look ' + num(f.i)) + '">';
+    document.getElementById('look-name').textContent = f.ch.name;
+    document.getElementById('look-sub').textContent = (f.ch.kind === 'brand' ? 'Brand' : 'Look ' + num(f.i)) + ' · View profile';
+    document.getElementById('look-avatar').setAttribute('style', avatarStyle(f.ch, 88));
+    document.getElementById('look-profile').setAttribute('href', '#/' + f.ch.slug);
+    renderLookItems();
+    lookDialog.showModal();
+  }
+  app.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-open]');
+    if (b) showLook(b.getAttribute('data-open'));
+  });
+  document.getElementById('look-close').addEventListener('click', function () { lookDialog.close(); });
+  document.getElementById('look-profile').addEventListener('click', function () { lookDialog.close(); });
+  document.getElementById('look-cart').addEventListener('click', function () { lookDialog.close(); showCart(); });
+  [lookDialog, document.getElementById('cart-dialog')].forEach(function (d) {
+    d.addEventListener('click', function (e) { if (e.target === d) d.close(); });
+  });
+
+  // ---------- Cart (kept in this browser) ----------
+  var cart = [];
+  try { cart = JSON.parse(localStorage.getItem('pnt_cart') || '[]') || []; } catch (e) { cart = []; }
+  function saveCart() {
+    try { localStorage.setItem('pnt_cart', JSON.stringify(cart)); } catch (e) {}
+    var n = cart.reduce(function (t, x) { return t + x.qty; }, 0);
+    document.getElementById('cart-count').textContent = n;
+    document.getElementById('cart-btn').setAttribute('aria-label', 'Shopping cart, ' + n + ' item' + (n === 1 ? '' : 's'));
+    document.getElementById('look-cart').textContent = n ? 'View cart (' + n + ')' : 'View cart';
+  }
+  function addToCart(p) {
+    var hit = cart.filter(function (x) { return x.id === p.id; })[0];
+    if (hit) hit.qty += 1;
+    else cart.push({ id: p.id, name: p.name, price: Number(p.price), currency: p.currency || 'CAD', image_url: p.image_url || null, category: p.category || null, qty: 1 });
+    saveCart();
+  }
+  var cartDialog = document.getElementById('cart-dialog');
+  function renderCart() {
+    var box = document.getElementById('cart-items');
+    if (!cart.length) {
+      box.innerHTML = '<p class="empty">Your cart is empty. Click any picture to shop what the model is wearing.</p>';
+    } else {
+      box.innerHTML = cart.map(function (x) {
+        return '<div class="cart-item">' +
+          '<span class="thumb" style="' + (x.image_url ? 'background-image:url(\'' + esc(window.pntImg(x.image_url, { w: 96, h: 96, crop: 'fill' })) + '\')' : '') + '"></span>' +
+          '<span class="grow"><strong>' + esc(x.name) + '</strong><br><span class="muted">' + money(x.price, x.currency) + '</span>' +
+          '<span class="qty"><button type="button" class="icon-btn" data-dec="' + x.id + '" aria-label="One less ' + esc(x.name) + '">&minus;</button>' +
+          '<span aria-live="polite">' + x.qty + '</span>' +
+          '<button type="button" class="icon-btn" data-inc="' + x.id + '" aria-label="One more ' + esc(x.name) + '">+</button></span></span>' +
+          '<button type="button" class="link danger" data-rm="' + x.id + '">Remove</button>' +
+        '</div>';
+      }).join('');
+    }
+    var total = cart.reduce(function (t, x) { return t + x.price * x.qty; }, 0);
+    document.getElementById('cart-subtotal').textContent = money(total, 'CAD');
+    document.getElementById('checkout').disabled = !cart.length;
+    box.querySelectorAll('[data-inc],[data-dec],[data-rm]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var id = b.getAttribute('data-inc') || b.getAttribute('data-dec') || b.getAttribute('data-rm');
+        var hit = cart.filter(function (x) { return x.id === id; })[0];
+        if (!hit) return;
+        if (b.hasAttribute('data-inc')) hit.qty += 1;
+        else if (b.hasAttribute('data-dec')) hit.qty -= 1;
+        else hit.qty = 0;
+        cart = cart.filter(function (x) { return x.qty > 0; });
+        saveCart(); renderCart();
+      });
+    });
+  }
+  function showCart() {
+    document.getElementById('checkout-msg').textContent = '';
+    renderCart();
+    cartDialog.showModal();
+  }
+  document.getElementById('cart-btn').addEventListener('click', showCart);
+  document.getElementById('cart-close').addEventListener('click', function () { cartDialog.close(); });
+  document.getElementById('checkout').addEventListener('click', function () {
+    document.getElementById('checkout-msg').textContent = 'Checkout is coming soon. Your cart is saved in this browser.';
+  });
+  saveCart();
 
   window.addEventListener('hashchange', route);
   db.auth.getSession().then(function (r) { user = r.data.session ? r.data.session.user : null; load(); });

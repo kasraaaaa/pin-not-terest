@@ -23,6 +23,10 @@
         <label for="search" class="sr">Search characters, brands and looks</label>
         <input id="search" type="search" placeholder="Search characters, brands, looks">
       </div>
+      <button type="button" id="cart-btn" class="btn cart-btn" aria-label="Shopping cart, 0 items">
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>
+        <span id="cart-count" class="cart-count">0</span>
+      </button>
       <button type="button" id="create-btn" class="btn btn-dark">+ New character</button>
     </div>
   </header>
@@ -44,6 +48,39 @@
         <button type="submit" class="btn btn-dark">Create</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="look-dialog" class="look-dialog" aria-labelledby="look-name">
+    <div class="look">
+      <div class="look-img" id="look-img"></div>
+      <div class="look-side">
+        <div class="look-head">
+          <a id="look-profile" class="look-who" href="#/">
+            <span id="look-avatar" class="dot" aria-hidden="true"></span>
+            <span><strong id="look-name"></strong><br><span class="muted" id="look-sub"></span></span>
+          </a>
+          <button type="button" class="icon-btn close-btn" id="look-close" aria-label="Close">&times;</button>
+        </div>
+        <p class="eyebrow" style="margin:24px 0 8px">In this look</p>
+        <div id="look-items" class="look-items"></div>
+        <button type="button" id="look-cart" class="btn btn-dark look-cart">View cart</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="cart-dialog" class="cart-dialog" aria-labelledby="cart-title">
+    <div class="cart">
+      <div class="look-head">
+        <h2 id="cart-title">Your cart</h2>
+        <button type="button" class="icon-btn close-btn" id="cart-close" aria-label="Close">&times;</button>
+      </div>
+      <div id="cart-items" class="cart-items"></div>
+      <div class="cart-foot">
+        <div class="cart-total"><span>Subtotal</span><strong id="cart-subtotal">$0.00</strong></div>
+        <button type="button" id="checkout" class="btn btn-dark" style="width:100%">Checkout</button>
+        <p id="checkout-msg" class="muted" role="status" style="text-align:center"></p>
+      </div>
+    </div>
   </dialog>
 
   <footer class="site-footer">
