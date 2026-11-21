@@ -459,9 +459,7 @@
   document.getElementById('signin-form').addEventListener('submit', async function (e) {
     e.preventDefault();
     var email = document.getElementById('signin-email').value.trim();
-    document.getElementById('signin-msg').textContent = 'Sending…';
-    var r = await db.auth.signInWithOtp({ email: email, options: { emailRedirectTo: returnUrl() } });
-    document.getElementById('signin-msg').textContent = r.error ? 'Could not send the link: ' + r.error.message : 'Check your email and click the link to sign in.';
+    await window.pntEmailLink(db, email, returnUrl(), document.getElementById('signin-msg'), e.target.querySelector('button[type=submit]'));
   });
   var accountDialog = document.getElementById('account-dialog');
   document.getElementById('account-btn').addEventListener('click', function () {

@@ -24,10 +24,7 @@
   $('login-form').addEventListener('submit', async function (e) {
     e.preventDefault();
     var email = $('email').value.trim();
-    $('login-msg').textContent = 'Sending…';
-    var redirect = location.origin + location.pathname;
-    var res = await db.auth.signInWithOtp({ email: email, options: { emailRedirectTo: redirect } });
-    $('login-msg').textContent = res.error ? ('Could not send link: ' + res.error.message) : 'Check your email for the sign-in link.';
+    await window.pntEmailLink(db, email, location.origin + location.pathname, $('login-msg'), e.target.querySelector('button[type=submit]'));
   });
   $('google-login').addEventListener('click', async function () {
     $('google-msg').textContent = '';
