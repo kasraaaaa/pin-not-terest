@@ -305,9 +305,20 @@
     catch (e) { return '$' + Number(v).toFixed(2); }
   }
   var productPhoto = null;
+  var renamingBrand = null;
+  function brandsList() { return chars.filter(function (c) { return c.kind === 'brand'; }); }
+  function brandName(id) { var b = chars.filter(function (c) { return c.id === id; })[0]; return b ? b.name : ''; }
+  async function createBrand(name) {
+    return db.from('characters').insert({
+      creator_id: user.id, kind: 'brand', name: name,
+      slug: slugify(name) + '-' + Math.random().toString(36).slice(2, 6),
+      creator_handle: '@' + (user.email || 'creator').split('@')[0]
+    }).select().single();
+  }
   function renderProducts() {
     var p = editingProduct;
     productPhoto = p ? p.image_url : null;
+    var brands = brandsList();
     $('detail').innerHTML =
       '<div class="detail-head"><div><p class="eyebrow">Inventory</p><h1>Products</h1>' +
       '<p class="muted">Everything your models wear that customers can buy. Tag products on pictures from each character\'s page.</p></div></div>' +
@@ -317,7 +328,12 @@
           '<div class="pf-field pf-wide"><label for="pf-name">Name</label><input id="pf-name" class="field" required maxlength="120" placeholder="e.g. Grey wool blazer" value="' + esc(p ? p.name : '') + '"></div>' +
           '<div class="pf-field"><label for="pf-price">Price (CAD)</label><input id="pf-price" class="field" required type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" value="' + (p ? Number(p.price).toFixed(2) : '') + '"></div>' +
           '<div class="pf-field"><label for="pf-cat">Category</label><input id="pf-cat" class="field" maxlength="40" list="pf-cats" placeholder="Dress, Heels, Watch…" value="' + esc(p && p.category ? p.category : '') + '">' +
-            '<datalist id="pf-cats"><option>Dress</option><option>Top</option><option>Jacket</option><option>Coat</option><option>Trousers</option><option>Skirt</option><option>Heels</option><option>Shoes</option><option>Sneakers</option><option>Boots</option><option>Bag</option><option>Watch</option><option>Ring</option><option>Necklace</option><option>Earrings</option><option>Bracelet</option><option>Sunglasses</option><option>Hat</option></datalist></div>' +
+            '<datalist id="pf-cats"><option>Dress</option><option>Top</option><option>Jacket</option><option>Coat</option><option>Trousers</option><option>Skirt</option><option>Heels</option><option>Shoes</option><option>Sneakers</option><option>Boots</option><option>Bag</option><option>Purse</option><option>Watch</option><option>Ring</option><option>Necklace</option><option>Earrings</option><option>Bracelet</option><option>Sunglasses</option><option>Hat</option></datalist></div>' +
+          '<div class="pf-field"><label for="pf-brand">Brand</label><select id="pf-brand" class="field">' +
+            '<option value="">No brand</option>' +
+            brands.map(function (b) { return '<option value="' + b.id + '"' + (p && p.brand_id === b.id ? ' selected' : '') + '>' + esc(b.name) + '</option>'; }).join('') +
+            '<option value="__new">+ New brand…</option></select></div>' +
+          '<div class="pf-field" id="pf-newbrand-wrap" hidden><label for="pf-newbrand">New brand name</label><input id="pf-newbrand" class="field" maxlength="80" placeholder="e.g. Maison Vale"></div>' +
         '</div>' +
         '<div class="pf-photo"><span id="pf-thumb" class="thumb big" style="' + (productPhoto ? 'background-image:url(\'' + esc(window.pntImg(productPhoto, { w: 160, h: 160, crop: 'fill' })) + '\')' : '') + '"></span>' +
           '<button type="button" id="pf-upload" class="btn">' + (productPhoto ? 'Change photo' : 'Add product photo (optional)') + '</button></div>' +
@@ -329,13 +345,78 @@
         ? '<div class="product-list" role="list">' + products.map(function (x) {
             return '<div class="product-row" role="listitem">' +
               '<span class="thumb" style="' + (x.image_url ? 'background-image:url(\'' + esc(window.pntImg(x.image_url, { w: 96, h: 96, crop: 'fill' })) + '\')' : '') + '"></span>' +
-              '<span class="grow"><strong>' + esc(x.name) + '</strong>' + (x.category ? '<br><span class="muted">' + esc(x.category) + '</span>' : '') + '</span>' +
+              '<span class="grow">' + (x.brand_id ? '<span class="brand-label">' + esc(brandName(x.brand_id)) + '</span><br>' : '') + '<strong>' + esc(x.name) + '</strong>' + (x.category ? '<br><span class="muted">' + esc(x.category) + '</span>' : '') + '</span>' +
               '<span class="price">' + money(x.price, x.currency) + '</span>' +
               '<button type="button" class="link" data-pedit="' + x.id + '">Edit</button>' +
               '<button type="button" class="link danger" data-pdel="' + x.id + '">Delete</button>' +
             '</div>';
           }).join('') + '</div>'
-        : '<p class="empty">No products yet. Add the first one above.</p>');
+        : '<p class="empty">No products yet. Add the first one above.</p>') +
+      '<section class="brands-box" aria-labelledby="brands-h"><h2 id="brands-h">Brands</h2>' +
+        '<p class="muted" style="margin:0 0 12px">Brands you sell. Each one also has its own page under Brands on the website.</p>' +
+        (brands.length ? '<div class="product-list" role="list">' + brands.map(function (b) {
+          var count = products.filter(function (x) { return x.brand_id === b.id; }).length;
+          if (renamingBrand === b.id) {
+            return '<form class="product-row brand-rename" role="listitem" data-bform="' + b.id + '">' +
+              '<label class="sr" for="br-' + b.id + '">Brand name</label>' +
+              '<input id="br-' + b.id + '" class="field grow" required maxlength="80" value="' + esc(b.name) + '">' +
+              '<button type="button" class="link" data-bcancel>Cancel</button><button type="submit" class="btn btn-dark" style="height:40px">Save</button></form>';
+          }
+          return '<div class="product-row" role="listitem"><span class="grow"><strong>' + esc(b.name) + '</strong><br><span class="muted">' + count + ' product' + (count === 1 ? '' : 's') + '</span></span>' +
+            '<button type="button" class="link" data-brename="' + b.id + '">Rename</button>' +
+            '<button type="button" class="link danger" data-bdel="' + b.id + '">Delete</button></div>';
+        }).join('') + '</div>' : '<p class="muted">No brands yet. Pick "+ New brand…" in the Brand menu above to add one.</p>') +
+        '<form id="brand-add" class="brand-add"><label class="sr" for="brand-add-name">New brand name</label>' +
+          '<input id="brand-add-name" class="field grow" maxlength="80" placeholder="Add a brand name">' +
+          '<button type="submit" class="btn">Add brand</button></form>' +
+        '<p id="brand-msg" class="muted" role="status"></p>' +
+      '</section>';
+
+    $('pf-brand').addEventListener('change', function () {
+      var isNew = $('pf-brand').value === '__new';
+      $('pf-newbrand-wrap').hidden = !isNew;
+      if (isNew) $('pf-newbrand').focus();
+    });
+    $('brand-add').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var name = $('brand-add-name').value.trim();
+      if (!name) return;
+      var r = await createBrand(name);
+      if (r.error) { $('brand-msg').textContent = 'Could not add: ' + r.error.message; return; }
+      loadChars();
+    });
+    document.querySelectorAll('[data-brename]').forEach(function (b) {
+      b.addEventListener('click', function () { renamingBrand = b.getAttribute('data-brename'); renderProducts(); $('br-' + renamingBrand).focus(); });
+    });
+    document.querySelectorAll('[data-bcancel]').forEach(function (b) {
+      b.addEventListener('click', function () { renamingBrand = null; renderProducts(); });
+    });
+    document.querySelectorAll('[data-bform]').forEach(function (f) {
+      f.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        var id = f.getAttribute('data-bform');
+        var name = $('br-' + id).value.trim();
+        if (!name) return;
+        var r = await db.from('characters').update({ name: name }).eq('id', id);
+        if (r.error) { $('brand-msg').textContent = 'Could not rename: ' + r.error.message; return; }
+        renamingBrand = null;
+        loadChars();
+      });
+    });
+    document.querySelectorAll('[data-bdel]').forEach(function (b) {
+      b.addEventListener('click', async function () {
+        var id = b.getAttribute('data-bdel');
+        var count = products.filter(function (x) { return x.brand_id === id; }).length;
+        var msg = 'Delete the brand "' + brandName(id) + '"?\n\n' +
+          (count ? count + ' product' + (count === 1 ? '' : 's') + ' will be kept but show no brand.\n' : '') +
+          'The brand\'s page and any pictures uploaded to it will be removed.';
+        if (!confirm(msg)) return;
+        var r = await db.from('characters').delete().eq('id', id);
+        if (r.error) { $('brand-msg').textContent = 'Could not delete: ' + r.error.message; return; }
+        if (editingProduct && editingProduct.brand_id === id) editingProduct.brand_id = null;
+        loadChars();
+      });
+    });
 
     $('pf-upload').addEventListener('click', function () {
       if (!window.cloudinary) { alert('The uploader did not load. Refresh and try again.'); return; }
@@ -362,6 +443,16 @@
       };
       if (!row.name || !(row.price >= 0)) { $('pf-msg').textContent = 'Enter a name and a price.'; return; }
       $('pf-msg').textContent = 'Saving…';
+      var brandSel = $('pf-brand').value;
+      if (brandSel === '__new') {
+        var bn = $('pf-newbrand').value.trim();
+        if (!bn) { $('pf-msg').textContent = 'Type the new brand name, or pick a brand.'; return; }
+        var nb = await createBrand(bn);
+        if (nb.error) { $('pf-msg').textContent = 'Could not add brand: ' + nb.error.message; return; }
+        row.brand_id = nb.data.id;
+      } else {
+        row.brand_id = brandSel || null;
+      }
       var r = editingProduct
         ? await db.from('products').update(row).eq('id', editingProduct.id)
         : await db.from('products').insert(Object.assign({ creator_id: user.id, currency: 'CAD' }, row));

@@ -13,6 +13,7 @@
   var tab = 'looks';
   var user = null;
   var editing = false;
+  var allProducts = [];
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -60,12 +61,14 @@
 
   function renderHome() {
     document.title = 'Pin Not Terest — Discover';
-    var opts = [{ slug: 'all', name: 'All' }].concat(chars);
+    // Brands only appear in the feed once they have pictures; they live on the Brands page.
+    var feedChars = chars.filter(function (ch) { return ch.kind !== 'brand' || ch.images.length; });
+    var opts = [{ slug: 'all', name: 'All' }].concat(feedChars);
     var chips = opts.map(function (o) {
       return '<button type="button" class="chip" data-filter="' + esc(o.slug) + '" aria-pressed="' + (filter === o.slug) + '">' + esc(o.name) + '</button>';
     }).join('');
 
-    var shown = chars.filter(function (ch) { return filter === 'all' || filter === ch.slug; });
+    var shown = feedChars.filter(function (ch) { return filter === 'all' || filter === ch.slug; });
     var lists = shown.map(looksOf);
     var maxLen = Math.max.apply(null, [0].concat(lists.map(function (l) { return l.length; })));
     var pins = '';
@@ -108,7 +111,70 @@
   }
 
   // Characters and Brands pages: a directory of profile cards for one kind.
+  function productCard(p) {
+    var inCart = cart.some(function (x) { return x.id === p.id; });
+    return '<div class="shop-card">' +
+      (p.image_url
+        ? '<img class="shop-photo" src="' + esc(window.pntImg(p.image_url, { w: 500, h: 625, crop: 'fill' })) + '" alt="' + esc(p.name) + '" loading="lazy">'
+        : '<div class="shop-photo shop-photo-empty" aria-hidden="true"><span>' + esc(p.category || 'Product') + '</span></div>') +
+      '<div class="shop-info">' + (p.brand && p.brand.name ? '<span class="brand-label">' + esc(p.brand.name) + '</span>' : '') +
+        '<strong>' + esc(p.name) + '</strong>' + (p.category ? '<span class="muted">' + esc(p.category) + '</span>' : '') +
+        '<span class="price">' + money(p.price, p.currency) + '</span></div>' +
+      '<button type="button" class="btn btn-dark add-btn' + (inCart ? ' added' : '') + '" data-shop-add="' + p.id + '">' + (inCart ? 'Added ✓' : 'Add to cart') + '</button>' +
+    '</div>';
+  }
+  function wireShopButtons(rerender) {
+    app.querySelectorAll('[data-shop-add]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var p = allProducts.filter(function (x) { return x.id === b.getAttribute('data-shop-add'); })[0];
+        if (p) { addToCart(p); rerender(); }
+      });
+    });
+  }
+
+  function renderBrands() {
+    document.title = 'Brands — Pin Not Terest';
+    var list = chars.filter(function (ch) { return ch.kind === 'brand' && ch.products.length; });
+    var cards = list.map(function (b) {
+      var photos = b.products.filter(function (p) { return p.image_url; }).slice(0, 4);
+      var cover = photos.length
+        ? '<div class="brand-cover">' + photos.map(function (p) { return '<img src="' + esc(window.pntImg(p.image_url, { w: 300, h: 300, crop: 'fill' })) + '" alt="" loading="lazy">'; }).join('') + '</div>'
+        : '<div class="brand-cover brand-cover-empty" aria-hidden="true"><span>' + esc(b.name) + '</span></div>';
+      var n = b.products.length;
+      return '<a class="brand-card" href="#/' + esc(b.slug) + '">' + cover +
+        '<div class="dir-meta"><div><strong>' + esc(b.name) + '</strong><span>' + n + ' product' + (n === 1 ? '' : 's') + ' for sale</span></div></div></a>';
+    }).join('');
+    app.innerHTML =
+      '<div class="home">' +
+        '<section class="intro"><div><p class="eyebrow">Brands</p><h1>Shop by brand.</h1></div>' +
+        '<p class="dir-count">' + list.length + ' brand' + (list.length === 1 ? '' : 's') + '</p></section>' +
+        (cards ? '<section class="dir-grid" aria-label="Brands">' + cards + '</section>' : '<p class="empty">No brands with products for sale yet.</p>') +
+      '</div>';
+  }
+
+  function renderBrandPage(b) {
+    document.title = b.name + ' — Pin Not Terest';
+    var mine = !!(user && b.creator_id === user.id);
+    var n = b.products.length;
+    app.innerHTML =
+      '<div class="profile">' +
+        '<a href="#/brands" class="back"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 3L5 8l5 5"/></svg>All brands</a>' +
+        '<section class="hero brand-hero"><p class="eyebrow" style="margin:0">Brand</p><h1>' + esc(b.name) + '</h1>' +
+          (b.bio ? '<p class="bio">' + esc(b.bio) + '</p>' : '') +
+          '<p class="muted">' + n + ' product' + (n === 1 ? '' : 's') + ' for sale</p>' +
+          (mine ? '<div class="actions"><a href="admin.html" class="btn" style="display:inline-flex;align-items:center">Manage products</a></div>' : '') +
+        '</section>' +
+        (n ? '<section class="shop-grid" aria-label="Products">' + b.products.map(productCard).join('') + '</section>'
+           : '<p class="empty">No products for sale yet.</p>') +
+        (b.images.length ? '<h2 class="section-h">Looks</h2><section class="grid" aria-label="Looks">' + looksOf(b).map(function (look, i) {
+            return '<div>' + openButton(b, i, look, tile(b, i, look, { w: 600, h: 750, crop: 'fill' })) + '</div>';
+          }).join('') + '</section>' : '') +
+      '</div>';
+    wireShopButtons(function () { renderBrandPage(b); });
+  }
+
   function renderDirectory(kind) {
+    if (kind === 'brand') { renderBrands(); return; }
     var isBrand = kind === 'brand';
     var title = isBrand ? 'Brands' : 'Characters';
     document.title = title + ' — Pin Not Terest';
@@ -217,7 +283,8 @@
       renderDirectory(slug === 'brands' ? 'brand' : 'character');
     } else {
       var ch = chars.filter(function (c) { return c.slug === slug; })[0];
-      if (ch) { setNav(ch.kind === 'brand' ? 'brands' : 'characters'); renderProfile(ch); }
+      if (ch && ch.kind === 'brand') { setNav('brands'); renderBrandPage(ch); }
+      else if (ch) { setNav('characters'); renderProfile(ch); }
       else { setNav('discover'); renderHome(); }
     }
     window.scrollTo(0, 0);
@@ -227,8 +294,10 @@
     app.innerHTML = '<p class="empty">Loading…</p>';
     var res = await Promise.all([
       db.from('characters').select('id, creator_id, slug, kind, name, bio, avatar_url, creator_handle, sort, created_at').order('sort').order('created_at'),
-      db.from('images').select('id, character_id, url, sort, created_at, image_products(sort, products(id, name, price, currency, category, image_url, is_active))').eq('is_live', true).order('sort').order('created_at')
+      db.from('images').select('id, character_id, url, sort, created_at, image_products(sort, products(id, name, price, currency, category, image_url, is_active, brand:characters(name)))').eq('is_live', true).order('sort').order('created_at'),
+      db.from('products').select('id, name, price, currency, category, image_url, brand_id, created_at').eq('is_active', true).order('created_at', { ascending: false })
     ]);
+    allProducts = (res[2] && res[2].data) || [];
     if (res[0].error) { app.innerHTML = '<p class="empty">Could not load the feed. Please refresh.</p>'; return; }
     var imgs = res[1].data || [];
     chars = (res[0].data || []).map(function (c, i) {
@@ -238,7 +307,12 @@
           .map(function (t) { return t.products; }).filter(function (p) { return p && p.is_active !== false; });
         return im;
       });
+      c.products = allProducts.filter(function (p) { return p.brand_id === c.id; });
       return c;
+    });
+    allProducts.forEach(function (p) {
+      var b = chars.filter(function (c) { return c.id === p.brand_id; })[0];
+      p.brand = b ? { name: b.name } : null;
     });
     route();
   }
@@ -307,7 +381,7 @@
       var inCart = cart.some(function (x) { return x.id === p.id; });
       return '<div class="look-item">' +
         '<span class="thumb" style="' + (p.image_url ? 'background-image:url(\'' + esc(window.pntImg(p.image_url, { w: 112, h: 112, crop: 'fill' })) + '\')' : '') + '"></span>' +
-        '<span class="grow"><strong>' + esc(p.name) + '</strong>' + (p.category ? '<br><span class="muted">' + esc(p.category) + '</span>' : '') +
+        '<span class="grow">' + (p.brand && p.brand.name ? '<span class="brand-label">' + esc(p.brand.name) + '</span><br>' : '') + '<strong>' + esc(p.name) + '</strong>' + (p.category ? '<br><span class="muted">' + esc(p.category) + '</span>' : '') +
         '<span class="price">' + money(p.price, p.currency) + '</span></span>' +
         '<button type="button" class="btn btn-dark add-btn' + (inCart ? ' added' : '') + '" data-add="' + p.id + '">' + (inCart ? 'Added ✓' : 'Add to cart') + '</button>' +
       '</div>';
@@ -356,7 +430,7 @@
   function addToCart(p) {
     var hit = cart.filter(function (x) { return x.id === p.id; })[0];
     if (hit) hit.qty += 1;
-    else cart.push({ id: p.id, name: p.name, price: Number(p.price), currency: p.currency || 'CAD', image_url: p.image_url || null, category: p.category || null, qty: 1 });
+    else cart.push({ id: p.id, brand: (p.brand && p.brand.name) || null, name: p.name, price: Number(p.price), currency: p.currency || 'CAD', image_url: p.image_url || null, category: p.category || null, qty: 1 });
     saveCart();
   }
   var cartDialog = document.getElementById('cart-dialog');
@@ -368,7 +442,7 @@
       box.innerHTML = cart.map(function (x) {
         return '<div class="cart-item">' +
           '<span class="thumb" style="' + (x.image_url ? 'background-image:url(\'' + esc(window.pntImg(x.image_url, { w: 96, h: 96, crop: 'fill' })) + '\')' : '') + '"></span>' +
-          '<span class="grow"><strong>' + esc(x.name) + '</strong><br><span class="muted">' + money(x.price, x.currency) + '</span>' +
+          '<span class="grow">' + (x.brand ? '<span class="brand-label">' + esc(x.brand) + '</span><br>' : '') + '<strong>' + esc(x.name) + '</strong><br><span class="muted">' + money(x.price, x.currency) + '</span>' +
           '<span class="qty"><button type="button" class="icon-btn" data-dec="' + x.id + '" aria-label="One less ' + esc(x.name) + '">&minus;</button>' +
           '<span aria-live="polite">' + x.qty + '</span>' +
           '<button type="button" class="icon-btn" data-inc="' + x.id + '" aria-label="One more ' + esc(x.name) + '">+</button></span></span>' +

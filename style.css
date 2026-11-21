@@ -217,3 +217,28 @@ a:hover .img { opacity: .88; }
   .look-img { max-height: 55vh; }
   .look-img img { max-height: 55vh; }
 }
+
+/* Brands */
+.brand-label { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: #6b6b6b; }
+.brands-box { margin-top: 36px; }
+.brands-box h2 { font-size: 18px; margin: 0 0 4px; }
+.brand-add { display: flex; gap: 10px; margin-top: 14px; }
+.brand-rename .field { height: 40px; }
+
+/* Brands page and shop cards */
+.brand-card { display: block; }
+.brand-cover { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px; aspect-ratio: 1 / 1; border-radius: 14px; overflow: hidden; background: #f2f2f0; }
+.brand-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.brand-cover img:only-child { grid-column: 1 / -1; grid-row: 1 / -1; }
+.brand-cover-empty { display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; }
+.brand-cover-empty span { font-size: 26px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.brand-card:hover .brand-cover { opacity: .9; }
+.brand-hero { gap: 10px; }
+.shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 24px; }
+.shop-card { display: flex; flex-direction: column; gap: 10px; }
+.shop-photo { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; border-radius: 12px; background: #f2f2f0; display: block; }
+.shop-photo-empty { display: flex; align-items: center; justify-content: center; color: #6b6b6b; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; }
+.shop-info { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
+.shop-info .price { font-weight: 600; margin-top: 4px; }
+.shop-card .add-btn { align-self: flex-start; }
+.section-h { font-size: 22px; font-weight: 600; margin: 56px 0 20px; }
