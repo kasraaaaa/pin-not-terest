@@ -5,6 +5,7 @@
   var user = null;
   var chars = [];
   var current = null;
+  var maxSort = 0;
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -94,6 +95,7 @@
     var c = current;
     var res = await db.from('images').select('*').eq('character_id', c.id).order('sort').order('created_at');
     var imgs = res.data || [];
+    maxSort = imgs.reduce(function (m, i) { return Math.max(m, i.sort || 0); }, 0);
     var live = imgs.filter(function (i) { return i.is_live; }).length;
 
     $('detail').innerHTML =
@@ -110,10 +112,15 @@
         '<p id="d-msg" class="muted" role="status"></p>' +
         '<div class="actions" style="margin:0"><button type="button" id="d-cancel" class="btn">Cancel</button><button type="submit" class="btn btn-dark">Save</button></div>' +
       '</form>' +
-      (imgs.length ? '<div class="admin-grid">' + imgs.map(function (i) {
+      (imgs.length ? '<p class="muted" style="margin:-12px 0 16px">Drag images to reorder, or use the arrows. The first image shows first on the profile and in the feed.</p><div class="admin-grid" id="admin-grid">' + imgs.map(function (i, idx) {
         var isAvatar = c.avatar_url === i.url;
-        return '<figure class="admin-card' + (i.is_live ? ' is-live' : '') + '">' +
-          '<img src="' + esc(window.pntImg(i.url, { w: 400, h: 500, crop: 'fill', gravity: 'auto' })) + '" alt="" loading="lazy">' +
+        return '<figure class="admin-card' + (i.is_live ? ' is-live' : '') + '" draggable="true" data-card="' + i.id + '">' +
+          '<div class="card-top"><span class="pos">' + (idx + 1) + '</span>' +
+            '<span class="move">' +
+              '<button type="button" class="icon-btn" data-move="-1" data-for="' + i.id + '" aria-label="Move image ' + (idx + 1) + ' earlier"' + (idx === 0 ? ' disabled' : '') + '>&larr;</button>' +
+              '<button type="button" class="icon-btn" data-move="1" data-for="' + i.id + '" aria-label="Move image ' + (idx + 1) + ' later"' + (idx === imgs.length - 1 ? ' disabled' : '') + '>&rarr;</button>' +
+            '</span></div>' +
+          '<img src="' + esc(window.pntImg(i.url, { w: 400, h: 500, crop: 'fill', gravity: 'auto' })) + '" alt="" loading="lazy" draggable="false">' +
           '<figcaption>' +
             '<label class="switch"><input type="checkbox" data-live="' + i.id + '"' + (i.is_live ? ' checked' : '') + '> <span>' + (i.is_live ? 'Live' : 'Hidden') + '</span></label>' +
             '<button type="button" class="link" data-avatar="' + i.id + '"' + (isAvatar ? ' disabled' : '') + '>' + (isAvatar ? 'Profile photo' : 'Use as profile photo') + '</button>' +
@@ -123,6 +130,73 @@
       : '<p class="empty">No images yet. Upload full-body looks, then switch on the ones you want live.</p>');
 
     $('upload').addEventListener('click', function () { openUpload(c); });
+
+    // ---------- Reorder: drag and drop + arrow buttons ----------
+    var order = imgs.map(function (i) { return i.id; });
+    async function saveOrder(ids) {
+      $('detail').setAttribute('aria-busy', 'true');
+      var changed = ids.map(function (id, n) { return { id: id, sort: n + 1 }; }).filter(function (r) {
+        var orig = imgs.filter(function (i) { return i.id === r.id; })[0];
+        return !orig || orig.sort !== r.sort;
+      });
+      var results = await Promise.all(changed.map(function (r) {
+        return db.from('images').update({ sort: r.sort }).eq('id', r.id);
+      }));
+      var failed = results.filter(function (r) { return r.error; });
+      if (failed.length) alert('Could not save the new order. Please try again.');
+      loadDetail();
+    }
+    var grid = $('admin-grid');
+    if (grid) {
+      var dragId = null;
+      grid.querySelectorAll('[data-card]').forEach(function (card) {
+        card.addEventListener('dragstart', function (e) {
+          dragId = card.getAttribute('data-card');
+          card.classList.add('dragging');
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', dragId);
+        });
+        card.addEventListener('dragend', function () {
+          card.classList.remove('dragging');
+          grid.querySelectorAll('.drop-before, .drop-after').forEach(function (el) { el.classList.remove('drop-before', 'drop-after'); });
+        });
+        card.addEventListener('dragover', function (e) {
+          if (!dragId || card.getAttribute('data-card') === dragId) return;
+          e.preventDefault();
+          var r = card.getBoundingClientRect();
+          var after = (e.clientX - r.left) > r.width / 2;
+          card.classList.toggle('drop-after', after);
+          card.classList.toggle('drop-before', !after);
+        });
+        card.addEventListener('dragleave', function () { card.classList.remove('drop-before', 'drop-after'); });
+        card.addEventListener('drop', function (e) {
+          e.preventDefault();
+          var target = card.getAttribute('data-card');
+          if (!dragId || target === dragId) return;
+          var after = card.classList.contains('drop-after');
+          var ids = order.filter(function (id) { return id !== dragId; });
+          var at = ids.indexOf(target) + (after ? 1 : 0);
+          ids.splice(at, 0, dragId);
+          dragId = null;
+          var byId = {};
+          grid.querySelectorAll('[data-card]').forEach(function (el) { byId[el.getAttribute('data-card')] = el; });
+          ids.forEach(function (id) { grid.appendChild(byId[id]); });
+          saveOrder(ids);
+        });
+      });
+      grid.querySelectorAll('[data-move]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var id = b.getAttribute('data-for');
+          var step = parseInt(b.getAttribute('data-move'), 10);
+          var ids = order.slice();
+          var n = ids.indexOf(id);
+          var m = n + step;
+          if (m < 0 || m >= ids.length) return;
+          ids[n] = ids[m]; ids[m] = id;
+          saveOrder(ids);
+        });
+      });
+    }
     $('edit-details').addEventListener('click', function () { $('details-form').hidden = false; $('d-name').focus(); });
     $('d-cancel').addEventListener('click', function () { $('details-form').hidden = true; });
     $('details-form').addEventListener('submit', async function (e) {
@@ -158,6 +232,7 @@
 
   function openUpload(c) {
     if (!window.cloudinary) { alert('The uploader did not load. Refresh and try again.'); return; }
+    var nextSort = maxSort;
     var widget = window.cloudinary.createUploadWidget({
       cloudName: cfg.cloudinaryCloud,
       uploadPreset: cfg.cloudinaryPreset,
@@ -171,7 +246,9 @@
       if (err) { console.error(err); return; }
       if (result.event === 'success') {
         var info = result.info;
+        nextSort += 1;
         await db.from('images').insert({
+          sort: nextSort,
           character_id: c.id, creator_id: user.id, url: info.secure_url,
           public_id: info.public_id, width: info.width, height: info.height, is_live: false
         });

@@ -113,3 +113,15 @@ a:hover .img { opacity: .88; }
 .edit-form label { font-size: 13px; font-weight: 600; }
 .edit-form .actions { justify-content: center; }
 .owner-note { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #6b6b6b; }
+
+/* Reordering */
+.admin-card { cursor: grab; position: relative; background: #fff; }
+.admin-card.dragging { opacity: .4; }
+.admin-card.drop-before { box-shadow: -4px 0 0 #111; }
+.admin-card.drop-after { box-shadow: 4px 0 0 #111; }
+.card-top { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-bottom: 1px solid #eee; }
+.pos { font-size: 12px; font-weight: 600; min-width: 24px; }
+.move { display: flex; gap: 4px; }
+.icon-btn { width: 32px; height: 32px; border: 1px solid #dcdcdc; border-radius: 8px; background: #fff; color: #111; font: inherit; font-size: 15px; cursor: pointer; }
+.icon-btn:disabled { color: #bbb; cursor: default; }
+.icon-btn:not(:disabled):hover { border-color: #111; }
