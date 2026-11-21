@@ -54,7 +54,11 @@ window.pntWelcome = async function (db, user) {
     var r = await db.from('creators').select('display_name').eq('id', user.id).maybeSingle();
     name = (r.data && r.data.display_name) || '';
   } catch (e) {}
-  if (!name) name = (user.user_metadata && (user.user_metadata.full_name || user.user_metadata.name)) || (user.email || '').split('@')[0];
+  var emailName = (user.email || '').split('@')[0];
+  var googleName = user.user_metadata && (user.user_metadata.full_name || user.user_metadata.name);
+  // Shoppers' saved name defaults to their email; a real name from Google reads better.
+  if (googleName && (!name || name === emailName)) name = googleName;
+  if (!name) name = emailName;
   name = String(name).trim().split(/[\s._-]+/)[0] || '';
   if (name) name = name.charAt(0).toUpperCase() + name.slice(1);
   var el = document.createElement('div');
