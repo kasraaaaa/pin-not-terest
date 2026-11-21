@@ -65,7 +65,7 @@
     } else {
       list.innerHTML = chars.map(function (c) {
         return '<li><button type="button" class="char-btn" data-id="' + c.id + '" aria-pressed="' + (current && current.id === c.id) + '">' +
-          '<span class="dot" style="background-color:#ddd' + (c.avatar_url ? ';background-image:url(\'' + esc(window.pntImg(c.avatar_url, { w: 80, h: 80, crop: 'fill', gravity: 'face' })) + '\')' : '') + '"></span>' +
+          '<span class="dot" style="background-color:#ddd' + (c.avatar_url ? ';background-image:url(\'' + esc(window.pntImg(c.avatar_url, { w: 80, h: 80, crop: 'thumb', gravity: 'face' })) + '\')' : '') + '"></span>' +
           '<span>' + esc(c.name) + '</span><span class="kind">' + c.kind + '</span></button></li>';
       }).join('');
       list.querySelectorAll('[data-id]').forEach(function (b) {

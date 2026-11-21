@@ -39,10 +39,15 @@
       '<span class="label" style="color:' + pal.label + '">Image ' + num(i) + '</span></div>';
   }
 
+  // Profile photo: the chosen avatar, else the first live picture cropped to the face.
+  function avatarUrl(ch) {
+    return ch.avatar_url || (ch.images && ch.images[0] && ch.images[0].url) || null;
+  }
   function avatarStyle(ch, size) {
     var pal = palettes[ch.index % palettes.length];
     var s = 'background-color:' + pal.tones[0];
-    if (ch.avatar_url) s += ';background-image:url(\'' + esc(window.pntImg(ch.avatar_url, { w: size, h: size, crop: 'fill', gravity: 'face' })) + '\')';
+    var u = avatarUrl(ch);
+    if (u) s += ';background-image:url(\'' + esc(window.pntImg(u, { w: size, h: size, crop: 'thumb', gravity: 'face' })) + '\')';
     return s;
   }
 
