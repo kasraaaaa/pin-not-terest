@@ -44,7 +44,7 @@ window.pntEmailLink = async function (db, email, redirect, msgEl, btn) {
   }
 };
 
-// "Welcome back, Name" — a 1-second banner at the top, once per visit.
+// "Welcome back Name 👋🏻" — a 2-second banner at the top, once per visit.
 window.pntWelcome = async function (db, user) {
   if (!user) return;
   var key = 'pnt_welcomed_' + user.id;
@@ -64,11 +64,16 @@ window.pntWelcome = async function (db, user) {
   var el = document.createElement('div');
   el.className = 'welcome-pop';
   el.setAttribute('role', 'status');
-  el.textContent = name ? 'Welcome back ' + name : 'Welcome back';
+  el.textContent = name ? 'Welcome back ' + name + ' ' : 'Welcome back ';
+  var wave = document.createElement('span');
+  wave.className = 'wave';
+  wave.setAttribute('aria-hidden', 'true');
+  wave.textContent = '\uD83D\uDC4B\uD83C\uDFFB';
+  el.appendChild(wave);
   document.body.appendChild(el);
   requestAnimationFrame(function () { el.classList.add('in'); });
-  setTimeout(function () { el.classList.remove('in'); }, 1200);
-  setTimeout(function () { el.remove(); }, 1600);
+  setTimeout(function () { el.classList.remove('in'); }, 2200);
+  setTimeout(function () { el.remove(); }, 2600);
 };
 
 // Fill in the email last used on this device, so people don't retype it.
