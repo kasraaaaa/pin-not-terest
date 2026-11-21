@@ -90,7 +90,7 @@ a:hover .img { opacity: .88; }
 .char-btn:hover { background: #f6f6f6; }
 .char-btn[aria-pressed="true"] { border-color: #111; }
 .char-btn .kind { margin-left: auto; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #6b6b6b; }
-.new summary { list-style: none; display: inline-flex; align-items: center; }
+.new summary { list-style: none; display: inline-flex; align-items: center; white-space: nowrap; font-size: 13px; padding: 0 18px; }
 .new summary::-webkit-details-marker { display: none; }
 .detail-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 28px; }
 .detail-head a { color: #111; text-decoration: underline; }
