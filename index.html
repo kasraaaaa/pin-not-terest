@@ -17,12 +17,13 @@
         <a href="#/" class="active">Discover</a>
         <a href="#/">Characters</a>
         <a href="#/">Brands</a>
+        <a href="admin.html">For creators</a>
       </nav>
       <div class="search">
         <label for="search" class="sr">Search characters, brands and looks</label>
         <input id="search" type="search" placeholder="Search characters, brands, looks">
       </div>
-      <button type="button" class="btn btn-dark">Create character</button>
+      <a href="admin.html" class="btn btn-dark" style="display:inline-flex;align-items:center">Create character</a>
     </div>
   </header>
 
@@ -35,7 +36,8 @@
     </div>
   </footer>
 
-  <script src="data.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

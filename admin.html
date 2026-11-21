@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Creator dashboard — Pin Not Terest</title>
+  <meta name="robots" content="noindex">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap header-row">
+      <a href="./" class="logo">Pin <span>Not</span> Terest</a>
+      <span class="badge">Creator</span>
+      <div style="margin-left:auto; display:flex; align-items:center; gap:16px">
+        <span id="who" class="muted"></span>
+        <button type="button" id="signout" class="btn" hidden>Sign out</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap dash">
+    <!-- 1. Creator login -->
+    <section id="login" class="panel narrow" hidden>
+      <p class="eyebrow">Creator login</p>
+      <h1>Sign in with email</h1>
+      <p class="muted">We'll email you a one-time sign-in link. No password.</p>
+      <form id="login-form" class="stack">
+        <label for="email">Email</label>
+        <input id="email" type="email" required autocomplete="email" class="field">
+        <button type="submit" class="btn btn-dark">Send sign-in link</button>
+        <p id="login-msg" class="muted" role="status"></p>
+      </form>
+    </section>
+
+    <!-- 2. Creator dashboard -->
+    <section id="dash" hidden>
+      <div class="dash-grid">
+        <aside class="panel">
+          <p class="eyebrow">Your characters &amp; brands</p>
+          <ul id="char-list" class="char-list"></ul>
+          <details class="new">
+            <summary class="btn">+ New character or brand</summary>
+            <form id="new-form" class="stack">
+              <label for="new-kind">Type</label>
+              <select id="new-kind" class="field"><option value="character">Character</option><option value="brand">Brand</option></select>
+              <label for="new-name">Name</label>
+              <input id="new-name" required maxlength="80" class="field">
+              <label for="new-bio">One-line bio</label>
+              <input id="new-bio" maxlength="300" class="field">
+              <button type="submit" class="btn btn-dark">Create</button>
+              <p id="new-msg" class="muted" role="status"></p>
+            </form>
+          </details>
+        </aside>
+
+        <div class="panel" id="detail">
+          <p class="muted">Pick a character or brand on the left, or create one.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://upload-widget.cloudinary.com/latest/global/all.js"></script>
+  <script src="config.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>

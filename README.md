@@ -9,7 +9,8 @@ A Pinterest-style site where human creators build AI characters and brands, each
 ## Files
 - `index.html`: page shell (header, footer)
 - `style.css`: the black-and-white design
-- `data.js`: the characters. Put Cloudinary image URLs in `looks` and `avatar`
+- `config.js`: Supabase + Cloudinary settings
+- `admin.html`, `admin.js`: creator dashboard (login, characters/brands, upload, go-live)
 - `app.js`: home feed, filters and profile pages (`#/noa`, `#/ilya`, `#/sena`)
 
 No build step: edit, commit, push, and Pages updates in a minute or two.
