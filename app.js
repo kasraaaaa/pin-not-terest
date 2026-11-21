@@ -74,8 +74,7 @@
         var look = lists[c][i];
         if (!look) return;
         var h = look.url ? null : heights[(i + ch.index * 2) % 6];
-        var meta = '<span class="dot" aria-hidden="true" style="' + avatarStyle(ch, 60) + '"></span>' +
-          '<strong>' + esc(ch.name) + '</strong><span>' + (ch.kind === 'brand' ? 'Brand' : 'Look ' + num(i)) + '</span>';
+        var meta = '<strong>' + esc(ch.name) + '</strong><span>' + (ch.kind === 'brand' ? 'Brand' : 'Look ' + num(i)) + '</span>';
         if (look.url) {
           pins += '<div class="pin">' + openButton(ch, i, look, tile(ch, i, look, { w: 600 })) +
             '<a class="pin-meta" href="#/' + esc(ch.slug) + '">' + meta + '</a></div>';
@@ -119,7 +118,7 @@
       var count = ch.images.length;
       return '<a class="dir-card" href="#/' + esc(ch.slug) + '">' +
         tile(ch, 0, looks[0], { w: 600, h: 800, crop: 'fill', height: looks[0].url ? null : 360 }) +
-        '<div class="dir-meta"><span class="dot" aria-hidden="true" style="' + avatarStyle(ch, 80) + '"></span>' +
+        '<div class="dir-meta">' +
         '<div><strong>' + esc(ch.name) + '</strong>' +
         '<span>' + (count ? count + (count === 1 ? ' look' : ' looks') : 'No looks yet') +
         (ch.creator_handle ? ' · by ' + esc(ch.creator_handle) : '') + '</span></div></div></a>';
@@ -329,7 +328,6 @@
     document.getElementById('look-img').innerHTML = '<img src="' + esc(src) + '" alt="' + esc(f.ch.name + ', look ' + num(f.i)) + '">';
     document.getElementById('look-name').textContent = f.ch.name;
     document.getElementById('look-sub').textContent = (f.ch.kind === 'brand' ? 'Brand' : 'Look ' + num(f.i)) + ' · View profile';
-    document.getElementById('look-avatar').setAttribute('style', avatarStyle(f.ch, 88));
     document.getElementById('look-profile').setAttribute('href', '#/' + f.ch.slug);
     renderLookItems();
     lookDialog.showModal();
