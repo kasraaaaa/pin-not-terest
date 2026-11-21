@@ -125,3 +125,7 @@ a:hover .img { opacity: .88; }
 .icon-btn { width: 32px; height: 32px; border: 1px solid #dcdcdc; border-radius: 8px; background: #fff; color: #111; font: inherit; font-size: 15px; cursor: pointer; }
 .icon-btn:disabled { color: #bbb; cursor: default; }
 .icon-btn:not(:disabled):hover { border-color: #111; }
+
+/* Real images: feed keeps each image's natural shape; profile grid crops to 4:5 */
+.img.has-img { padding: 0; display: block; }
+.feed .img.has-img img { position: static; display: block; width: 100%; height: auto; }

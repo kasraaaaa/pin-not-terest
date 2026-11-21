@@ -33,7 +33,7 @@
     var style = 'background:' + pal.tones[i % 6] + ';' + (opts.height ? 'height:' + opts.height + 'px' : '');
     if (look.url) {
       var src = window.pntImg(look.url, { w: opts.w || 600, crop: opts.crop, h: opts.h, gravity: 'auto' });
-      return '<div class="img" style="' + style + '"><img src="' + esc(src) + '" alt="' + esc(alt) + '" loading="lazy"></div>';
+      return '<div class="img has-img" style="background:' + pal.tones[i % 6] + '"><img src="' + esc(src) + '" alt="' + esc(alt) + '" loading="lazy"></div>';
     }
     return '<div class="img" role="img" aria-label="' + esc(alt) + ' (placeholder)" style="' + style + '">' +
       '<span class="label" style="color:' + pal.label + '">Image ' + num(i) + '</span></div>';

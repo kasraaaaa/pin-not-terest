@@ -15,6 +15,6 @@ window.pntImg = function (url, opts) {
   if (opts && opts.w) t.push('w_' + opts.w);
   if (opts && opts.h) t.push('h_' + opts.h);
   if (opts && opts.crop) t.push('c_' + opts.crop);
-  if (opts && opts.gravity) t.push('g_' + opts.gravity);
+  if (opts && opts.gravity && opts.crop) t.push('g_' + opts.gravity);
   return url.replace('/image/upload/', '/image/upload/' + t.join(',') + '/');
 };
