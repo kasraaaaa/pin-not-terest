@@ -7,6 +7,7 @@
   var current = null;
   var maxSort = 0;
   var view = 'chars';
+  var me = null;
   var products = [];
   var editingProduct = null;
 
@@ -43,13 +44,217 @@
     render();
   });
 
-  function render() {
+  async function loadMe() {
+    if (!user) { me = null; return; }
+    var r = await db.from('creators').select('*').eq('id', user.id).maybeSingle();
+    me = r.data || { id: user.id, is_creator: false };
+  }
+  async function render() {
     $('login').hidden = !!user;
-    $('dash').hidden = !user;
     $('signout').hidden = !user;
     $('who').textContent = user ? user.email : '';
-    if (user) loadChars();
+    if (!user) { $('dash').hidden = true; $('onboard').hidden = true; return; }
+    await loadMe();
+    var creator = !!(me && me.is_creator);
+    $('dash').hidden = !creator;
+    $('onboard').hidden = creator;
+    if (creator) { $('onboard').innerHTML = ''; paintProfileDot(); loadChars(); }
+    else renderOnboarding();
   }
+  function handleTag() {
+    return '@' + ((me && me.handle) || (user.email || 'creator').split('@')[0]);
+  }
+  function paintProfileDot() {
+    var d = $('profile-dot');
+    if (me && me.avatar_url) d.style.backgroundImage = "url('" + window.pntImg(me.avatar_url, { w: 80, h: 80, crop: 'thumb', gravity: 'face' }) + "')";
+    $('profile-btn').setAttribute('aria-pressed', String(view === 'profile'));
+  }
+
+  // ---------- Creator setup questions (shown to shoppers who switch to creator mode) ----------
+  var CREATOR_TYPES = [
+    ['designer', 'Independent designer', 'You design your own pieces'],
+    ['brand', 'Fashion brand', 'An established label or company'],
+    ['boutique', 'Boutique or shop', 'You sell pieces from several brands'],
+    ['stylist', 'Stylist', 'You put looks together'],
+    ['ai_artist', 'AI fashion artist', 'You create AI models and looks'],
+    ['other', 'Something else', '']
+  ];
+  var SELLS = ['Dresses', 'Tops', 'Knitwear', 'Jackets & coats', 'Trousers & skirts', 'Suits', 'Menswear', 'Shoes', 'Heels', 'Sneakers', 'Bags & purses', 'Jewelry', 'Watches', 'Sunglasses', 'Hats', 'Accessories'];
+  var draft = null;
+  var step = 1;
+  function newDraft() {
+    return {
+      display_name: (me && me.display_name) || '',
+      handle: (me && me.handle) || slugify((user.email || '').split('@')[0]).replace(/-/g, '.').slice(0, 30),
+      creator_type: (me && me.creator_type) || '',
+      sells: (me && me.sells) ? me.sells.slice() : [],
+      location: (me && me.location) || '',
+      website: (me && me.website) || '',
+      bio: (me && me.bio) || '',
+      avatar_url: (me && me.avatar_url) || '',
+      agree: false
+    };
+  }
+  function stepFields(mode) {
+    var d = draft;
+    var who =
+      '<div class="ob-field"><label for="ob-name">Your name or studio name</label><input id="ob-name" class="field" maxlength="60" autocomplete="organization" value="' + esc(d.display_name) + '"></div>' +
+      '<div class="ob-field"><label for="ob-handle">Your handle</label><div class="handle-input"><span aria-hidden="true">@</span><input id="ob-handle" class="field" maxlength="30" autocomplete="off" autocapitalize="none" spellcheck="false" value="' + esc(d.handle) + '"></div>' +
+        '<span class="hint">Shown on your models, like “created by @' + esc(d.handle || 'yourname') + '”. Lowercase letters, numbers, dots and underscores.</span></div>' +
+      '<fieldset class="ob-field"><legend>What best describes you?</legend><div class="choice-grid">' + CREATOR_TYPES.map(function (t) {
+        return '<label class="choice"><input type="radio" name="ob-type" value="' + t[0] + '"' + (d.creator_type === t[0] ? ' checked' : '') + '><span><strong>' + t[1] + '</strong>' + (t[2] ? '<br><span class="muted">' + t[2] + '</span>' : '') + '</span></label>';
+      }).join('') + '</div></fieldset>';
+    var sells =
+      '<fieldset class="ob-field"><legend>What do you sell? <span class="muted">Pick all that apply</span></legend><div class="chip-picks">' + SELLS.map(function (x, n) {
+        return '<label class="pick"><input type="checkbox" value="' + esc(x) + '"' + (d.sells.indexOf(x) > -1 ? ' checked' : '') + '><span>' + esc(x) + '</span></label>';
+      }).join('') + '</div></fieldset>' +
+      '<div class="ob-field"><label for="ob-location">Where are you based? <span class="muted">(optional)</span></label><input id="ob-location" class="field" maxlength="80" placeholder="e.g. Vancouver, Canada" value="' + esc(d.location) + '"></div>' +
+      '<div class="ob-field"><label for="ob-website">Website or shop link <span class="muted">(optional)</span></label><input id="ob-website" class="field" type="url" maxlength="200" placeholder="https://" value="' + esc(d.website) + '"></div>';
+    var about =
+      '<div class="ob-field"><label for="ob-bio">Short bio</label><textarea id="ob-bio" class="field area" maxlength="300" rows="4" placeholder="Tell shoppers about your style and what you make.">' + esc(d.bio) + '</textarea><span class="hint"><span id="ob-bio-count">' + d.bio.length + '</span>/300</span></div>' +
+      '<div class="ob-field"><span class="label-like">Profile picture <span class="muted">(optional)</span></span><div class="pf-photo"><span id="ob-avatar" class="avatar-pick" style="' + (d.avatar_url ? "background-image:url('" + esc(window.pntImg(d.avatar_url, { w: 160, h: 160, crop: 'thumb', gravity: 'face' })) + "')" : '') + '"></span>' +
+        '<button type="button" id="ob-avatar-btn" class="btn">' + (d.avatar_url ? 'Change picture' : 'Upload a picture') + '</button>' +
+        (d.avatar_url ? '<button type="button" id="ob-avatar-rm" class="link">Remove</button>' : '') + '</div></div>';
+    if (mode === 'profile') return who + sells + about;
+    return [who, sells, about][step - 1] || '';
+  }
+  function collect() {
+    var d = draft;
+    if ($('ob-name')) d.display_name = $('ob-name').value.trim();
+    if ($('ob-handle')) d.handle = $('ob-handle').value.trim().replace(/^@/, '').toLowerCase();
+    var t = document.querySelector('input[name="ob-type"]:checked'); if (t) d.creator_type = t.value;
+    var picks = document.querySelectorAll('.chip-picks input');
+    if (picks.length) d.sells = Array.prototype.filter.call(picks, function (x) { return x.checked; }).map(function (x) { return x.value; });
+    if ($('ob-location')) d.location = $('ob-location').value.trim();
+    if ($('ob-website')) d.website = $('ob-website').value.trim();
+    if ($('ob-bio')) d.bio = $('ob-bio').value.trim();
+    if ($('ob-agree')) d.agree = $('ob-agree').checked;
+  }
+  function problems(which) {
+    var d = draft, p = [];
+    if (which === 1 || which === 'all') {
+      if (!d.display_name) p.push('Enter your name or studio name.');
+      if (!/^[a-z0-9._]{3,30}$/.test(d.handle)) p.push('Your handle needs 3–30 lowercase letters, numbers, dots or underscores.');
+      if (!d.creator_type) p.push('Choose what best describes you.');
+    }
+    if (which === 2 || which === 'all') {
+      if (!d.sells.length) p.push('Pick at least one thing you sell.');
+      if (d.website && !/^https?:\/\/\S+\.\S+/i.test(d.website)) p.push('The website should start with https://');
+    }
+    if (which === 3 || which === 'all') {
+      if (d.bio.length < 10) p.push('Write a short bio (at least 10 characters).');
+    }
+    return p;
+  }
+  function typeLabel(v) { var t = CREATOR_TYPES.filter(function (x) { return x[0] === v; })[0]; return t ? t[1] : ''; }
+  function wireCommon(rerender) {
+    if ($('ob-handle')) $('ob-handle').addEventListener('input', function (e) {
+      var v = e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, '');
+      if (v !== e.target.value) e.target.value = v;
+    });
+    if ($('ob-bio')) $('ob-bio').addEventListener('input', function () { $('ob-bio-count').textContent = $('ob-bio').value.length; });
+    if ($('ob-avatar-btn')) $('ob-avatar-btn').addEventListener('click', function () {
+      if (!window.cloudinary) { alert('The uploader did not load. Refresh and try again.'); return; }
+      collect();
+      window.cloudinary.createUploadWidget({
+        cloudName: cfg.cloudinaryCloud, uploadPreset: cfg.cloudinaryPreset, folder: cfg.cloudinaryFolder + '/creators',
+        sources: ['local', 'url', 'camera'], multiple: false, cropping: true, croppingAspectRatio: 1, showSkipCropButton: false,
+        maxFileSize: 10000000, clientAllowedFormats: ['jpg', 'jpeg', 'png', 'webp']
+      }, function (err, result) {
+        if (!err && result.event === 'success') { draft.avatar_url = result.info.secure_url; rerender(); }
+      }).open();
+    });
+    if ($('ob-avatar-rm')) $('ob-avatar-rm').addEventListener('click', function () { collect(); draft.avatar_url = ''; rerender(); });
+  }
+
+  function renderOnboarding() {
+    if (!draft) { draft = newDraft(); step = 1; }
+    var titles = ['', 'Tell us who you are', 'What do you sell?', 'Your bio and picture', 'Check and confirm'];
+    var body = step < 4 ? stepFields('wizard') :
+      '<dl class="review">' +
+        '<div><dt>Name</dt><dd>' + esc(draft.display_name) + '</dd></div>' +
+        '<div><dt>Handle</dt><dd>@' + esc(draft.handle) + '</dd></div>' +
+        '<div><dt>You are</dt><dd>' + esc(typeLabel(draft.creator_type)) + '</dd></div>' +
+        '<div><dt>You sell</dt><dd>' + esc(draft.sells.join(', ')) + '</dd></div>' +
+        (draft.location ? '<div><dt>Based in</dt><dd>' + esc(draft.location) + '</dd></div>' : '') +
+        (draft.website ? '<div><dt>Website</dt><dd>' + esc(draft.website) + '</dd></div>' : '') +
+        '<div><dt>Bio</dt><dd>' + esc(draft.bio) + '</dd></div>' +
+      '</dl>' +
+      '<label class="agree"><input type="checkbox" id="ob-agree"' + (draft.agree ? ' checked' : '') + '> <span>I own, or have the rights to sell, the products I list, and I have the rights to the images I upload.</span></label>';
+    $('onboard').innerHTML =
+      '<div class="panel ob-panel">' +
+        (step === 1 ? '<p class="eyebrow">Creator mode</p><h1>Start selling on Pin Not Terest</h1><p class="muted">Creators build AI models, dress them in their products, and sell to shoppers. Answer a few quick questions to switch your account to creator mode.</p>' : '') +
+        '<div class="ob-progress" aria-label="Step ' + step + ' of 4">' + [1, 2, 3, 4].map(function (n) { return '<span class="' + (n <= step ? 'on' : '') + '"></span>'; }).join('') + '</div>' +
+        '<p class="ob-step">Step ' + step + ' of 4</p><h2>' + titles[step] + '</h2>' +
+        '<form id="ob-form" class="ob-form" novalidate>' + body +
+          '<p id="ob-msg" class="ob-msg" role="alert"></p>' +
+          '<div class="actions ob-actions">' +
+            (step > 1 ? '<button type="button" id="ob-back" class="btn">Back</button>' : '<a href="./" class="btn" style="display:inline-flex;align-items:center">Not now</a>') +
+            '<button type="submit" class="btn btn-dark">' + (step < 4 ? 'Continue' : 'Switch to creator mode') + '</button>' +
+          '</div>' +
+        '</form>' +
+      '</div>';
+    wireCommon(renderOnboarding);
+    if ($('ob-back')) $('ob-back').addEventListener('click', function () { collect(); step -= 1; renderOnboarding(); });
+    $('ob-form').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      collect();
+      if (step < 4) {
+        var p = problems(step);
+        if (p.length) { $('ob-msg').textContent = p.join(' '); return; }
+        step += 1; renderOnboarding(); window.scrollTo(0, 0); return;
+      }
+      var all = problems('all');
+      if (all.length) { $('ob-msg').textContent = all.join(' '); return; }
+      if (!draft.agree) { $('ob-msg').textContent = 'Please tick the box to confirm.'; return; }
+      $('ob-msg').textContent = 'Setting up your creator account…';
+      var r = await db.rpc('become_creator', {
+        p_display_name: draft.display_name, p_handle: draft.handle, p_creator_type: draft.creator_type, p_sells: draft.sells,
+        p_location: draft.location, p_website: draft.website, p_bio: draft.bio, p_avatar_url: draft.avatar_url || null, p_agree: true
+      });
+      if (r.error) { $('ob-msg').textContent = r.error.message.replace(/^.*?: /, ''); return; }
+      draft = null; step = 1; view = 'welcome';
+      render();
+    });
+  }
+
+  // ---------- Creator profile (edit later) ----------
+  function renderProfile() {
+    if (!draft) draft = newDraft();
+    $('detail').innerHTML =
+      '<div class="detail-head"><div><p class="eyebrow">Creator profile</p><h1>' + esc(me.display_name || 'Your profile') + '</h1>' +
+      '<p class="muted">How shoppers see you. Your handle appears on every model you create.</p></div></div>' +
+      (!me.handle ? '<p class="notice">Finish your profile: add a handle and a short bio.</p>' : '') +
+      '<form id="ob-form" class="ob-form" novalidate>' + stepFields('profile') +
+        '<p id="ob-msg" class="ob-msg" role="alert"></p>' +
+        '<div class="actions ob-actions"><button type="submit" class="btn btn-dark">Save profile</button></div>' +
+      '</form>';
+    wireCommon(renderProfile);
+    $('ob-form').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      collect();
+      var p = problems('all');
+      if (p.length) { $('ob-msg').textContent = p.join(' '); return; }
+      $('ob-msg').textContent = 'Saving…';
+      var r = await db.from('creators').update({
+        display_name: draft.display_name, handle: draft.handle, creator_type: draft.creator_type, sells: draft.sells,
+        location: draft.location || null, website: draft.website || null, bio: draft.bio, avatar_url: draft.avatar_url || null
+      }).eq('id', user.id);
+      if (r.error) {
+        $('ob-msg').textContent = r.error.code === '23505' ? 'That handle is taken. Try another.' : 'Could not save: ' + r.error.message;
+        return;
+      }
+      var oldHandle = me.handle;
+      await loadMe();
+      if (oldHandle !== me.handle) await db.from('characters').update({ creator_handle: '@' + me.handle }).eq('creator_id', user.id);
+      draft = null;
+      paintProfileDot();
+      $('ob-msg').textContent = 'Saved.';
+      renderProfile();
+      $('ob-msg').textContent = 'Saved.';
+    });
+  }
+  $('profile-btn').addEventListener('click', function () { view = 'profile'; current = null; draft = null; loadChars(); });
 
   // ---------- 2. Dashboard: characters and brands ----------
   async function loadChars() {
@@ -83,7 +288,17 @@
     products = pr.data || [];
     $('product-count').textContent = products.length ? String(products.length) : '';
     $('products-btn').setAttribute('aria-pressed', String(view === 'products'));
+    $('profile-btn').setAttribute('aria-pressed', String(view === 'profile'));
     if (view === 'products') { renderProducts(); return; }
+    if (view === 'profile') { renderProfile(); return; }
+    if (view === 'welcome') {
+      $('detail').innerHTML = '<p class="eyebrow">Creator mode</p><h1>Welcome, ' + esc(me.display_name || '') + '.</h1>' +
+        '<p class="muted" style="max-width:560px">You\u2019re set up as a creator. Here\u2019s how to get your first look live:</p>' +
+        '<ol class="steps-list"><li><strong>Create a model</strong> with “+ New character / brand” on the left.</li>' +
+        '<li><strong>Upload looks</strong> of your model wearing your pieces, and switch them to Live.</li>' +
+        '<li><strong>Add products</strong> under Products, then <strong>tag</strong> them on each look so shoppers can buy.</li></ol>';
+      return;
+    }
     if (current) loadDetail(); else $('detail').innerHTML = '<p class="muted">Pick a character or brand on the left, or create one. Add what the models wear under <strong>Products</strong>.</p>';
   }
   $('products-btn').addEventListener('click', function () { view = 'products'; current = null; loadChars(); });
@@ -98,7 +313,7 @@
       name: name,
       bio: $('new-bio').value.trim() || null,
       slug: slugify(name) + '-' + Math.random().toString(36).slice(2, 6),
-      creator_handle: '@' + (user.email || 'creator').split('@')[0]
+      creator_handle: handleTag()
     };
     var res = await db.from('characters').insert(row).select().single();
     if (res.error) { $('new-msg').textContent = 'Could not create: ' + res.error.message; return; }
@@ -312,7 +527,7 @@
     return db.from('characters').insert({
       creator_id: user.id, kind: 'brand', name: name,
       slug: slugify(name) + '-' + Math.random().toString(36).slice(2, 6),
-      creator_handle: '@' + (user.email || 'creator').split('@')[0]
+      creator_handle: handleTag()
     }).select().single();
   }
   function renderProducts() {

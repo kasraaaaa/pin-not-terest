@@ -7,7 +7,7 @@
   <meta name="robots" content="noindex">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=202611211604">
+  <link rel="stylesheet" href="style.css?v=202611211614">
 </head>
 <body>
   <header class="site-header">
@@ -41,10 +41,16 @@
       </form>
     </section>
 
+    <!-- Switch to creator mode: setup questions for shoppers -->
+    <section id="onboard" class="onboard" hidden></section>
+
     <!-- 2. Creator dashboard -->
     <section id="dash" hidden>
       <div class="dash-grid">
         <aside class="panel">
+          <button type="button" id="profile-btn" class="char-btn products-btn" aria-pressed="false">
+            <span class="dot" id="profile-dot" aria-hidden="true" style="background:#ddd"></span><span>Your creator profile</span>
+          </button>
           <button type="button" id="products-btn" class="char-btn products-btn" aria-pressed="false">
             <span class="dot" aria-hidden="true" style="background:#111"></span><span>Products</span><span class="kind" id="product-count"></span>
           </button>
@@ -87,7 +93,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://upload-widget.cloudinary.com/latest/global/all.js"></script>
-  <script src="config.js?v=202611211604"></script>
-  <script src="admin.js?v=202611211604"></script>
+  <script src="config.js?v=202611211614"></script>
+  <script src="admin.js?v=202611211614"></script>
 </body>
 </html>

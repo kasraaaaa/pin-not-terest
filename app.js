@@ -11,6 +11,7 @@
   var filter = 'all';
   var following = {};
   var lastSeen = 0;
+  var amCreator = false;
   var tab = 'looks';
   var user = null;
   var editing = false;
@@ -244,7 +245,7 @@
   function renderProfile(ch) {
     document.title = ch.name + ' — Pin Not Terest';
     var f = !!following[ch.id];
-    var mine = !!(user && ch.creator_id === user.id);
+    var mine = !!(user && amCreator && ch.creator_id === user.id);
     var tabs = [['looks', 'Looks'], ['brands', 'Brands'], ['boards', 'Boards']].map(function (t) {
       return '<button type="button" class="tab" data-tab="' + t[0] + '" aria-pressed="' + (tab === t[0]) + '">' + t[1] + '</button>';
     }).join('');
@@ -326,7 +327,10 @@
 
   async function loadFollows() {
     following = {};
+    amCreator = false;
     if (!user) return;
+    var cr = await db.from('creators').select('is_creator').eq('id', user.id).maybeSingle();
+    amCreator = !!(cr.data && cr.data.is_creator);
     var r = await db.from('follows').select('character_id').eq('user_id', user.id);
     (r.data || []).forEach(function (x) { following[x.character_id] = true; });
   }
@@ -383,8 +387,10 @@
   function updateHeader() {
     var acct = document.getElementById('account-btn');
     acct.textContent = user ? 'Account' : 'Sign in';
-    var isCreator = !!(user && chars.some(function (c) { return c.creator_id === user.id; }));
+    var isCreator = !!(user && amCreator);
     document.getElementById('create-btn').hidden = !isCreator;
+    document.getElementById('account-creator').textContent = isCreator ? 'Creator dashboard' : 'Switch to creator mode';
+    document.getElementById('account-creator-note').hidden = isCreator;
     var badge = document.getElementById('new-count');
     var fresh = (user && lastSeen) ? followedLooks().filter(function (l) { return l.t > lastSeen; }).length : 0;
     badge.hidden = !fresh || location.hash === '#/following';
