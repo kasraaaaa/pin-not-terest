@@ -64,7 +64,7 @@ window.pntWelcome = async function (db, user) {
   var el = document.createElement('div');
   el.className = 'welcome-pop';
   el.setAttribute('role', 'status');
-  el.textContent = name ? 'Welcome back, ' + name : 'Welcome back';
+  el.textContent = name ? 'Welcome back ' + name : 'Welcome back';
   document.body.appendChild(el);
   requestAnimationFrame(function () { el.classList.add('in'); });
   setTimeout(function () { el.classList.remove('in'); }, 1200);
