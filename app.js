@@ -173,6 +173,47 @@
     wireShopButtons(function () { renderBrandPage(b); });
   }
 
+  // ---------- Search ----------
+  function renderSearch(q) {
+    document.title = 'Search: ' + q + ' — Pin Not Terest';
+    var productItems = allProducts.map(function (p) {
+      return { kind: 'product', p: p, text: [p.name, p.category, p.brand && p.brand.name].join(' '), boost: 0.2 };
+    });
+    var products = window.pntSearch(q, productItems).map(function (x) { return x.p; });
+    var lookItems = [];
+    chars.forEach(function (ch) {
+      ch.images.forEach(function (im, i) {
+        var ptext = (im.products || []).map(function (p) { return [p.name, p.category, p.brand && p.brand.name].join(' '); }).join(' ');
+        lookItems.push({ ch: ch, im: im, i: i, text: ch.name + ' ' + ptext });
+      });
+    });
+    var looks = window.pntSearch(q, lookItems).slice(0, 24);
+    var people = window.pntSearch(q, chars.filter(function (c) { return c.kind !== 'brand'; }).map(function (c) {
+      return { c: c, text: [c.name, c.bio, c.creator_handle].join(' ') };
+    })).map(function (x) { return x.c; });
+    var brands = window.pntSearch(q, chars.filter(function (c) { return c.kind === 'brand' && c.products.length; }).map(function (c) {
+      return { c: c, text: c.name };
+    })).map(function (x) { return x.c; });
+
+    var total = products.length + looks.length + people.length + brands.length;
+    var html = '<div class="home"><section class="intro"><div><p class="eyebrow">Search</p>' +
+      '<h1>' + (total ? 'Results for “' + esc(q) + '”' : 'Nothing found for “' + esc(q) + '”') + '</h1></div></section>';
+    if (!total) html += '<p class="empty">Try another word, like a category (dress, heels, purse), a brand or a character name.</p>';
+    if (brands.length) html += '<h2 class="section-h">Brands</h2><div class="chips search-chips">' + brands.map(function (b) {
+      return '<a class="chip" style="display:inline-flex;align-items:center" href="#/' + esc(b.slug) + '">' + esc(b.name) + '</a>';
+    }).join('') + '</div>';
+    if (products.length) html += '<h2 class="section-h">Products <span class="muted">(' + products.length + ')</span></h2><section class="shop-grid" aria-label="Products">' + products.map(productCard).join('') + '</section>';
+    if (looks.length) html += '<h2 class="section-h">Looks</h2><section class="feed" aria-label="Looks">' + looks.map(function (l) {
+      return '<div class="pin">' + openButton(l.ch, l.i, { url: l.im.url, id: l.im.id, products: l.im.products }, tile(l.ch, l.i, { url: l.im.url }, { w: 600 })) +
+        '<a class="pin-meta" href="#/' + esc(l.ch.slug) + '"><strong>' + esc(l.ch.name) + '</strong><span>Look ' + num(l.i) + '</span></a></div>';
+    }).join('') + '</section>';
+    if (people.length) html += '<h2 class="section-h">Characters</h2><div class="chips search-chips">' + people.map(function (c) {
+      return '<a class="chip" style="display:inline-flex;align-items:center" href="#/' + esc(c.slug) + '">' + esc(c.name) + '</a>';
+    }).join('') + '</div>';
+    app.innerHTML = html + '</div>';
+    wireShopButtons(function () { renderSearch(q); });
+  }
+
   function renderDirectory(kind) {
     if (kind === 'brand') { renderBrands(); return; }
     var isBrand = kind === 'brand';
@@ -278,6 +319,14 @@
     var slug = location.hash.replace(/^#\/?/, '');
     tab = 'looks';
     editing = false;
+    if (slug.indexOf('search/') === 0) {
+      var q = decodeURIComponent(slug.slice(7));
+      var box = document.getElementById('search');
+      if (box && document.activeElement !== box) box.value = q;
+      setNav('');
+      renderSearch(q);
+      return;
+    }
     if (slug === 'characters' || slug === 'brands') {
       setNav(slug);
       renderDirectory(slug === 'brands' ? 'brand' : 'character');
@@ -477,6 +526,25 @@
     document.getElementById('checkout-msg').textContent = 'Checkout is coming soon. Your cart is saved in this browser.';
   });
   saveCart();
+
+  // Search box: results update as you type
+  var searchBox = document.getElementById('search');
+  var searchTimer = null;
+  function runSearch(push) {
+    var q = searchBox.value.trim();
+    var target = q ? '#/search/' + encodeURIComponent(q) : '#/';
+    if (location.hash === target) return;
+    if (push) location.hash = target;
+    else { history.replaceState(null, '', target); route(); }
+  }
+  searchBox.addEventListener('input', function () {
+    clearTimeout(searchTimer);
+    var fresh = location.hash.indexOf('#/search/') !== 0;
+    searchTimer = setTimeout(function () { runSearch(fresh); }, 200);
+  });
+  searchBox.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); clearTimeout(searchTimer); runSearch(location.hash.indexOf('#/search/') !== 0); }
+  });
 
   window.addEventListener('hashchange', route);
   db.auth.getSession().then(function (r) { user = r.data.session ? r.data.session.user : null; load(); });
