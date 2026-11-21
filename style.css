@@ -300,4 +300,4 @@ a:hover .img { opacity: .88; }
 .welcome-pop { position: fixed; top: 16px; left: 50%; z-index: 60; transform: translate(-50%, -12px); opacity: 0; background: #111; color: #fff; font-size: 14px; font-weight: 600; letter-spacing: .02em; padding: 12px 20px; border-radius: 24px; pointer-events: none; transition: opacity .3s, transform .3s; max-width: calc(100vw - 32px); }
 .welcome-pop.in { opacity: 1; transform: translate(-50%, 0); }
 @media (prefers-reduced-motion: reduce) { .welcome-pop { transition: none; } }
-.welcome-pop .wave { display: inline-block; transform: scaleX(-1); margin-left: 2px; }
+.welcome-pop .wave { display: inline-block; margin-left: 2px; }
