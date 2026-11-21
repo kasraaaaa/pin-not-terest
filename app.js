@@ -611,6 +611,7 @@
     var was = user && user.id;
     user = session ? session.user : null;
     if ((user && user.id) === was) return;
+    window.pntWelcome(db, user);
     lastSeen = readSeen();
     loadFollows().then(function () {
       if (signinDialog.open && user) signinDialog.close();
@@ -761,6 +762,7 @@
   window.addEventListener('hashchange', route);
   db.auth.getSession().then(async function (r) {
     user = r.data.session ? r.data.session.user : null;
+    window.pntWelcome(db, user);
     lastSeen = readSeen();
     await loadFollows();
     load();

@@ -52,6 +52,7 @@
     $('who').textContent = user ? user.email : '';
     if (!user) { $('dash').hidden = true; $('onboard').hidden = true; return; }
     await loadMe();
+    window.pntWelcome(db, user);
     var creator = !!(me && me.is_creator);
     // A shopper who was in the middle of something on the main site goes back to finish it.
     var pending = null; try { pending = localStorage.getItem('pnt_after_signin'); } catch (e) {}

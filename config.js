@@ -43,3 +43,26 @@ window.pntEmailLink = async function (db, email, redirect, msgEl, btn) {
     msgEl.textContent = 'We couldn\u2019t send the link right now. Please try again in a minute.';
   }
 };
+
+// "Welcome back, Name" — a 1-second banner at the top, once per visit.
+window.pntWelcome = async function (db, user) {
+  if (!user) return;
+  var key = 'pnt_welcomed_' + user.id;
+  try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, '1'); } catch (e) {}
+  var name = '';
+  try {
+    var r = await db.from('creators').select('display_name').eq('id', user.id).maybeSingle();
+    name = (r.data && r.data.display_name) || '';
+  } catch (e) {}
+  if (!name) name = (user.user_metadata && (user.user_metadata.full_name || user.user_metadata.name)) || (user.email || '').split('@')[0];
+  name = String(name).trim().split(/[\s._-]+/)[0] || '';
+  if (name) name = name.charAt(0).toUpperCase() + name.slice(1);
+  var el = document.createElement('div');
+  el.className = 'welcome-pop';
+  el.setAttribute('role', 'status');
+  el.textContent = name ? 'Welcome back, ' + name : 'Welcome back';
+  document.body.appendChild(el);
+  requestAnimationFrame(function () { el.classList.add('in'); });
+  setTimeout(function () { el.classList.remove('in'); }, 1200);
+  setTimeout(function () { el.remove(); }, 1600);
+};
