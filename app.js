@@ -350,8 +350,18 @@
   // After signing in (often in a new tab from the email link), go back and finish what was started.
   async function finishAfterSignIn() {
     if (!user) return;
+    var intent = window.pntSignIn.takeIntent();
     var p = null;
     try { p = JSON.parse(localStorage.getItem('pnt_after_signin') || 'null'); localStorage.removeItem('pnt_after_signin'); } catch (e) {}
+    if (intent === 'creator') {
+      // finish a follow they started, then go to creator setup (or their dashboard)
+      if (p && p.follow && !following[p.follow]) {
+        var fc = chars.filter(function (c) { return c.id === p.follow; })[0];
+        if (fc) await toggleFollow(fc);
+      }
+      location.replace('admin.html?setup=1');
+      return;
+    }
     if (!p || Date.now() - (p.at || 0) > 2 * 60 * 60 * 1000) return;
     if (p.follow && !following[p.follow]) {
       var ch = chars.filter(function (c) { return c.id === p.follow; })[0];
@@ -475,22 +485,11 @@
 
   var signinDialog = document.getElementById('signin-dialog');
   function openSignIn(why) {
-    document.getElementById('signin-why').textContent = why || 'Follow the models whose style you like and see what they wear each season.';
-    document.getElementById('signin-msg').textContent = '';
-    window.pntPrefillEmail(document.getElementById('signin-email'));
+    window.pntSignIn.mount(document.getElementById('signin-mount'), { db: db, why: why || '', returnUrl: returnUrl() });
     signinDialog.showModal();
   }
   function returnUrl() { return location.origin + location.pathname; }
   document.getElementById('signin-close').addEventListener('click', function () { signinDialog.close(); });
-  document.getElementById('signin-google').addEventListener('click', async function () {
-    var r = await db.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: returnUrl(), queryParams: { prompt: 'select_account' } } });
-    if (r.error) document.getElementById('signin-msg').textContent = 'Google sign-in is not available yet. Use the email link below.';
-  });
-  document.getElementById('signin-form').addEventListener('submit', async function (e) {
-    e.preventDefault();
-    var email = document.getElementById('signin-email').value.trim();
-    await window.pntEmailLink(db, email, returnUrl(), document.getElementById('signin-msg'), e.target.querySelector('button[type=submit]'));
-  });
   var accountDialog = document.getElementById('account-dialog');
   document.getElementById('account-btn').addEventListener('click', function () {
     if (!user) { rememberAfterSignIn({ route: location.hash || '#/' }); openSignIn(); return; }

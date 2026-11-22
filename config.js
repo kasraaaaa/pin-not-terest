@@ -36,7 +36,7 @@ window.pntEmailLink = async function (db, email, redirect, msgEl, btn) {
   }
   var m = (r.error.message || '').toLowerCase();
   if (r.error.status === 429 || m.indexOf('rate limit') > -1) {
-    msgEl.textContent = 'Too many sign-in emails have been sent in the last hour. Please try again in a little while' + (document.getElementById('google-login') || document.getElementById('signin-google') ? ', or use Continue with Google.' : '.');
+    msgEl.textContent = 'Too many sign-in emails have been sent in the last hour. Please try again in a little while, or use Continue with Google.';
   } else if (m.indexOf('invalid') > -1 && m.indexOf('email') > -1) {
     msgEl.textContent = 'That email address doesn\u2019t look right. Please check it.';
   } else {

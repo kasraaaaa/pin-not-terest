@@ -21,19 +21,6 @@
   }
 
   // ---------- 1. Creator login (email magic link) ----------
-  $('login-form').addEventListener('submit', async function (e) {
-    e.preventDefault();
-    var email = $('email').value.trim();
-    await window.pntEmailLink(db, email, location.origin + location.pathname, $('login-msg'), e.target.querySelector('button[type=submit]'));
-  });
-  $('google-login').addEventListener('click', async function () {
-    $('google-msg').textContent = '';
-    var res = await db.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: location.origin + location.pathname, queryParams: { prompt: 'select_account' } }
-    });
-    if (res.error) $('google-msg').textContent = 'Google sign-in is not available yet: ' + res.error.message;
-  });
   $('signout').addEventListener('click', async function () { await db.auth.signOut(); });
 
   db.auth.onAuthStateChange(function (_evt, session) {
@@ -50,7 +37,14 @@
     $('login').hidden = !!user;
     $('signout').hidden = !user;
     $('who').textContent = user ? user.email : '';
-    if (!user) { $('dash').hidden = true; $('onboard').hidden = true; window.pntPrefillEmail($('email')); return; }
+    if (!user) {
+      $('dash').hidden = true; $('onboard').hidden = true;
+      renderCreatorsPage();
+      return;
+    }
+    var intent = window.pntSignIn.takeIntent();
+    if (intent === 'shopper') { location.replace('./'); return; }
+    if (intent === 'creator') wantsSetup = true;
     await loadMe();
     window.pntWelcome(db, user);
     var creator = !!(me && me.is_creator);
@@ -62,6 +56,25 @@
     if (creator) { $('onboard').innerHTML = ''; paintProfileDot(); loadChars(); }
     else if (wantsSetup) renderOnboarding();
     else renderShopperChoice();
+  }
+  // Signed-out "For creators" page: a short pitch with one button straight to creator sign-up.
+  function renderCreatorsPage() {
+    $('login-mount').innerHTML =
+      '<div class="si">' +
+        '<p class="eyebrow" style="margin:0">For creators</p>' +
+        '<h1 class="si-title" style="font-size:30px">Sell your pieces on AI models</h1>' +
+        '<ul class="sell-points">' +
+          '<li>Create AI models that wear your clothes, bags, shoes and jewelry.</li>' +
+          '<li>Tag every item in a look. Shoppers buy straight from the picture.</li>' +
+          '<li>Shoppers follow your models\u2019 style and see your new looks each season.</li>' +
+        '</ul>' +
+        '<button type="button" id="start-selling" class="btn btn-dark" style="width:100%">Start selling my products</button>' +
+        '<p class="muted si-note">Already a creator? The same button signs you in.</p>' +
+        '<p class="muted si-note"><a href="./" style="color:#111;text-decoration:underline">Just shopping? Go to the shop</a></p>' +
+      '</div>';
+    $('start-selling').addEventListener('click', function () {
+      window.pntSignIn.mount($('login-mount'), { db: db, role: 'creator', returnUrl: location.origin + location.pathname });
+    });
   }
   // Shoppers only see the creator setup after choosing it.
   var wantsSetup = /[?&]setup=1/.test(location.search);
